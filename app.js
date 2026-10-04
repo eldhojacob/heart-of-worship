@@ -1,20 +1,20 @@
 /**
  * Heart of Worship — app.js
  * Vanilla JS single-file application.
- * Replace FIREBASE_CONFIG and VERIFY_PASSCODE_URL before deploying.
  */
 
 // ── Firebase config ────────────────────────────────────────────────────────
 const FIREBASE_CONFIG = {
-  apiKey:            'YOUR_API_KEY',
-  authDomain:        'YOUR_PROJECT.firebaseapp.com',
-  projectId:         'YOUR_PROJECT_ID',
-  storageBucket:     'YOUR_PROJECT.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId:             'YOUR_APP_ID',
+  apiKey:            'AIzaSyCjSYSQcW3vgjkdsH4QGwK7pMl0M8XXrRo',
+  authDomain:        'heart-of-worship-spwc.firebaseapp.com',
+  projectId:         'heart-of-worship-spwc',
+  storageBucket:     'heart-of-worship-spwc.firebasestorage.app',
+  messagingSenderId: '249170805695',
+  appId:             '1:249170805695:web:9fb0faa941ca1e4561970a',
 };
 
-// Cloud Function URL (set after deploying functions)
+// Cloud Function URL — update this after deploying the verifyPasscode function
+// e.g. 'https://us-central1-heart-of-worship-spwc.cloudfunctions.net/verifyPasscode'
 const VERIFY_PASSCODE_URL = 'YOUR_CLOUD_FUNCTION_URL/verifyPasscode';
 
 // ── Firebase init ──────────────────────────────────────────────────────────
