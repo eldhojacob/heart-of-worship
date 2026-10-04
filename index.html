@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heart of Worship</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Firebase SDK (CDN, compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-header__inner">
+      <h1 class="app-header__title">Heart of Worship</h1>
+      <button id="btn-unlock" class="btn btn--ghost" aria-label="Unlock editing">
+        🔒 Unlock editing
+      </button>
+    </div>
+  </header>
+
+  <!-- Search + Filter bar -->
+  <div class="toolbar" role="search">
+    <input
+      id="search-input"
+      class="search-bar"
+      type="search"
+      placeholder="Search by title or artist…"
+      aria-label="Search songs"
+      maxlength="255"
+    />
+    <div id="language-chips" class="language-filter" role="group" aria-label="Filter by language"></div>
+  </div>
+
+  <!-- Song list -->
+  <main id="song-list" class="song-list" aria-live="polite" aria-label="Song list"></main>
+
+  <!-- Passcode modal -->
+  <dialog id="passcode-modal" class="modal" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal__inner">
+      <h2 id="modal-title" class="modal__title">Unlock Editing</h2>
+      <form id="passcode-form" method="dialog">
+        <label class="field">
+          <span class="field__label">Passcode</span>
+          <input
+            id="passcode-input"
+            class="field__input"
+            type="password"
+            autocomplete="off"
+            required
+          />
+        </label>
+        <p id="passcode-error" class="form-error" role="alert" hidden></p>
+        <div class="modal__actions">
+          <button type="submit" class="btn btn--primary">Unlock</button>
+          <button type="button" id="btn-cancel-modal" class="btn btn--ghost">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Add / Edit song modal -->
+  <dialog id="song-modal" class="modal modal--wide" aria-modal="true" aria-labelledby="song-modal-title">
+    <div class="modal__inner">
+      <h2 id="song-modal-title" class="modal__title">Add Song</h2>
+      <form id="song-form">
+        <div class="form-grid">
+          <label class="field field--required">
+            <span class="field__label">Title *</span>
+            <input id="f-title" class="field__input" type="text" maxlength="200" required />
+            <span class="field__error" id="err-title" role="alert"></span>
+          </label>
+
+          <label class="field field--required">
+            <span class="field__label">Key *</span>
+            <input id="f-key" class="field__input" type="text" placeholder="e.g. G, Bm, F#" maxlength="3" required />
+            <span class="field__error" id="err-key" role="alert"></span>
+          </label>
+
+          <label class="field field--required">
+            <span class="field__label">Time Signature *</span>
+            <input id="f-time" class="field__input" type="text" placeholder="e.g. 4/4" maxlength="10" required />
+            <span class="field__error" id="err-time" role="alert"></span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Female Key <span class="field__hint">(if different)</span></span>
+            <input id="f-ftranspose" class="field__input" type="text" maxlength="3" />
+            <span class="field__error" id="err-ftranspose" role="alert"></span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Language</span>
+            <input id="f-language" class="field__input" type="text" maxlength="100" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Artist</span>
+            <input id="f-artist" class="field__input" type="text" maxlength="200" />
+          </label>
+
+          <label class="field field--full">
+            <span class="field__label">Details <span class="field__hint">(scripture, occasion…)</span></span>
+            <textarea id="f-details" class="field__input field__textarea" maxlength="2000" rows="3"></textarea>
+          </label>
+
+          <label class="field field--full">
+            <span class="field__label">Notes <span class="field__hint">(capo, arrangement…)</span></span>
+            <textarea id="f-notes" class="field__input field__textarea" maxlength="2000" rows="3"></textarea>
+          </label>
+
+          <label class="field field--full">
+            <span class="field__label">YouTube URL</span>
+            <input id="f-youtube" class="field__input" type="url" placeholder="https://youtube.com/…" maxlength="500" />
+            <span class="field__error" id="err-youtube" role="alert"></span>
+          </label>
+        </div>
+
+        <p id="song-form-error" class="form-error" role="alert" hidden></p>
+
+        <div class="modal__actions">
+          <button type="submit" class="btn btn--primary" id="btn-save-song">Save</button>
+          <button type="button" id="btn-cancel-song" class="btn btn--ghost">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
