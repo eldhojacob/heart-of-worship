@@ -13,9 +13,8 @@ const FIREBASE_CONFIG = {
   appId:             '1:249170805695:web:9fb0faa941ca1e4561970a',
 };
 
-// Cloud Function URL — update this after deploying the verifyPasscode function
-// e.g. 'https://us-central1-heart-of-worship-spwc.cloudfunctions.net/verifyPasscode'
-const VERIFY_PASSCODE_URL = 'YOUR_CLOUD_FUNCTION_URL/verifyPasscode';
+// Cloud Function URL
+const VERIFY_PASSCODE_URL = 'https://us-central1-heart-of-worship-spwc.cloudfunctions.net/verifyPasscode';
 
 // ── Firebase init ──────────────────────────────────────────────────────────
 firebase.initializeApp(FIREBASE_CONFIG);
