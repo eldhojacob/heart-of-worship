@@ -21,8 +21,9 @@ const FIREBASE_CONFIG = {
 
 // ── Firebase init ──────────────────────────────────────────────────────────
 firebase.initializeApp(FIREBASE_CONFIG);
-const db   = firebase.firestore();
-const auth = firebase.auth();
+const db      = firebase.firestore();
+const auth    = firebase.auth();
+const storage = firebase.storage();
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const KEY_REGEX = /^[A-G][b#]?m?$/;
@@ -144,6 +145,7 @@ auth.onAuthStateChanged(user => {
   isEditor = !!user && unlocked;
   document.body.classList.toggle('is-editor', isEditor);
   qs('#btn-unlock').textContent = isEditor ? '🔓 Lock editing' : '🔒 Unlock editing';
+  qs('#btn-background').hidden = !isEditor;
   if (isEditor && !qs('.add-song-btn')) {
     const div = document.createElement('div');
     div.className = 'add-song-btn';
@@ -161,6 +163,7 @@ qs('#btn-unlock').addEventListener('click', () => {
     isEditor = false;
     document.body.classList.remove('is-editor');
     qs('#btn-unlock').textContent = '🔒 Unlock editing';
+    qs('#btn-background').hidden = true;
     showToast('Editing locked.');
     return;
   }
@@ -208,6 +211,7 @@ qs('#passcode-form').addEventListener('submit', async e => {
       isEditor = true;
       document.body.classList.add('is-editor');
       qs('#btn-unlock').textContent = '🔓 Lock editing';
+      qs('#btn-background').hidden = false;
       if (!qs('.add-song-btn')) {
         const div = document.createElement('div');
         div.className = 'add-song-btn';
@@ -328,3 +332,80 @@ async function confirmDelete(id) {
 
 // ── Search ─────────────────────────────────────────────────────────────────
 qs('#search-input').addEventListener('input', e => { searchQuery = e.target.value; applyFilters(); });
+
+// ── Shared background image ──────────────────────────────────────────────────
+// Stored in Firestore at config/appearance → { backgroundUrl }
+// Applied live for everyone via onSnapshot. Uploads go to Firebase Storage.
+
+function applyBackground(url) {
+  if (url) {
+    document.body.style.setProperty('--bg-image', `url("${url}")`);
+    document.body.classList.add('has-bg');
+  } else {
+    document.body.style.removeProperty('--bg-image');
+    document.body.classList.remove('has-bg');
+  }
+}
+
+// Live-sync the background for all users
+db.collection('config').doc('appearance').onSnapshot(
+  snap => applyBackground(snap.exists ? (snap.data().backgroundUrl || '') : ''),
+  err  => console.error('appearance listener error:', err)
+);
+
+// Show the Background button only for editors
+function refreshBackgroundButton() {
+  const btn = qs('#btn-background');
+  if (btn) btn.hidden = !isEditor;
+}
+
+// Open the background modal
+qs('#btn-background').addEventListener('click', () => {
+  qs('#bg-status').textContent = '';
+  qs('#bg-modal').showModal();
+});
+qs('#btn-bg-close').addEventListener('click', () => qs('#bg-modal').close());
+
+// Trigger the hidden file picker
+qs('#btn-bg-upload').addEventListener('click', () => qs('#bg-file-input').click());
+
+// Handle the chosen file → upload to Storage → save URL to Firestore
+qs('#bg-file-input').addEventListener('change', async e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!isEditor) { showToast('Unlock editing first.'); return; }
+  if (!file.type.startsWith('image/')) { qs('#bg-status').textContent = 'Please choose an image file.'; return; }
+  if (file.size > 8 * 1024 * 1024) { qs('#bg-status').textContent = 'Image too large (max 8 MB).'; return; }
+
+  const status = qs('#bg-status');
+  status.textContent = 'Uploading…';
+  try {
+    const ref = storage.ref().child('backgrounds/current-' + Date.now() + '-' + file.name);
+    const task = await ref.put(file);
+    const url  = await task.ref.getDownloadURL();
+    await db.collection('config').doc('appearance').set({ backgroundUrl: url }, { merge: true });
+    status.textContent = 'Background updated!';
+    showToast('Background updated.');
+    setTimeout(() => qs('#bg-modal').close(), 800);
+  } catch (ex) {
+    console.error(ex);
+    status.textContent = 'Upload failed: ' + (ex.message || ex);
+  } finally {
+    e.target.value = ''; // reset so same file can be re-picked
+  }
+});
+
+// Remove the background (reset to default paper)
+qs('#btn-bg-remove').addEventListener('click', async () => {
+  if (!isEditor) { showToast('Unlock editing first.'); return; }
+  qs('#bg-status').textContent = 'Removing…';
+  try {
+    await db.collection('config').doc('appearance').set({ backgroundUrl: '' }, { merge: true });
+    qs('#bg-status').textContent = 'Background removed.';
+    showToast('Background removed.');
+    setTimeout(() => qs('#bg-modal').close(), 600);
+  } catch (ex) {
+    console.error(ex);
+    qs('#bg-status').textContent = 'Could not remove: ' + (ex.message || ex);
+  }
+});

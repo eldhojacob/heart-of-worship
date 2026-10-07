@@ -64,6 +64,27 @@ body {
   letter-spacing: -.01em;
   color: #fff;
 }
+.app-header__actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+/* ── Custom background support ───────────────────────────────────────────── */
+body.has-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: var(--bg-image);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+/* Readability overlay so cards/text stay legible over any photo */
+body.has-bg::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgba(245, 240, 232, .72);
+}
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
 .toolbar {

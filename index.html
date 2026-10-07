@@ -14,8 +14,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
 
@@ -23,9 +24,15 @@
   <header class="app-header">
     <div class="app-header__inner">
       <h1 class="app-header__title">Heart of Worship</h1>
-      <button id="btn-unlock" class="btn btn--ghost" aria-label="Unlock editing">
-        🔒 Unlock editing
-      </button>
+      <div class="app-header__actions">
+        <button id="btn-background" class="btn btn--ghost" aria-label="Change background" hidden>
+          🖼 Background
+        </button>
+        <button id="btn-unlock" class="btn btn--ghost" aria-label="Unlock editing">
+          🔒 Unlock editing
+        </button>
+      </div>
+      <input id="bg-file-input" type="file" accept="image/*" hidden />
     </div>
   </header>
 
@@ -69,6 +76,22 @@
           <button type="button" id="btn-cancel-modal" class="btn btn--ghost">Cancel</button>
         </div>
       </form>
+    </div>
+  </dialog>
+
+  <!-- Background settings modal -->
+  <dialog id="bg-modal" class="modal" aria-modal="true" aria-labelledby="bg-modal-title">
+    <div class="modal__inner">
+      <h2 id="bg-modal-title" class="modal__title">Background Image</h2>
+      <p class="field__hint">Upload an image to use as the shared background for everyone. Recommended: a wide, lightly-detailed photo so song text stays readable.</p>
+      <p id="bg-status" class="field__hint" role="status"></p>
+      <div class="modal__actions" style="justify-content: space-between;">
+        <button type="button" id="btn-bg-remove" class="btn btn--danger">Remove background</button>
+        <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+          <button type="button" id="btn-bg-upload" class="btn btn--primary">Upload image</button>
+          <button type="button" id="btn-bg-close" class="btn btn--ghost">Close</button>
+        </div>
+      </div>
     </div>
   </dialog>
 
