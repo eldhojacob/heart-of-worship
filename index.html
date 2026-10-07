@@ -52,13 +52,16 @@
       <form id="passcode-form" method="dialog">
         <label class="field">
           <span class="field__label">Passcode</span>
-          <input
-            id="passcode-input"
-            class="field__input"
-            type="password"
-            autocomplete="off"
-            required
-          />
+          <div class="input-with-toggle">
+            <input
+              id="passcode-input"
+              class="field__input"
+              type="password"
+              autocomplete="off"
+              required
+            />
+            <button type="button" id="btn-toggle-passcode" class="input-toggle" aria-label="Show passcode" aria-pressed="false">👁</button>
+          </div>
         </label>
         <p id="passcode-error" class="form-error" role="alert" hidden></p>
         <div class="modal__actions">
