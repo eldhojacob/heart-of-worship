@@ -16,7 +16,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
 
@@ -135,6 +135,22 @@
           </div>
         </form>
       </section>
+
+      <!-- Section: Reset my password (any logged-in user) -->
+      <section id="settings-password" class="settings-section" hidden>
+        <h3 class="settings-section__title">Reset password</h3>
+        <form id="password-form">
+          <label class="field">
+            <span class="field__label">New passcode</span>
+            <input id="pw-new" class="field__input" type="text" required />
+          </label>
+          <p id="pw-status" class="field__hint" role="status"></p>
+          <div class="modal__actions" style="justify-content:flex-start;">
+            <button type="submit" class="btn btn--primary">Update passcode</button>
+          </div>
+        </form>
+        <p class="field__hint">Changes the passcode for your own account.</p>
+      </section>
     </div>
   </dialog>
 
@@ -205,6 +221,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>

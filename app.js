@@ -185,10 +185,10 @@ function applyPermissionUI() {
 
   if (loggedIn) {
     badge.hidden = false;
-    badge.textContent = `${currentUser.username} · ${currentUser.role}`;
+    badge.textContent = currentUser.username;
     btnLogin.hidden = true;
-    // Gear only for those who can change settings (editors/admins)
-    btnGear.hidden = !canWriteAny();
+    // Gear shows for anyone logged in who can change settings OR is admin
+    btnGear.hidden = !(canWriteAny() || isAdmin());
     btnOut.hidden = false;
   } else {
     badge.hidden = true;
@@ -231,13 +231,14 @@ async function ensureAnonAuth() {
 
 // ── Settings modal (editors/admins) — appearance + user management ──────────
 function refreshSettingsSections() {
-  qs('#settings-appearance').hidden = !canWriteAny();
+  qs('#settings-appearance').hidden = !isAdmin();   // background is admin-only
   qs('#settings-users').hidden      = !isAdmin();
+  qs('#settings-password').hidden   = !isLoggedIn();
   if (isAdmin()) renderUserList();
 }
 
 qs('#btn-settings').addEventListener('click', async () => {
-  if (!canWriteAny()) { showToast('Log in as an editor or admin first.'); return; }
+  if (!(canWriteAny() || isAdmin())) { showToast('Log in first.'); return; }
   qs('#bg-status').textContent = '';
   try { await loadUsers(); } catch (e) { console.error(e); }
   refreshSettingsSections();
@@ -404,6 +405,35 @@ qs('#adduser-form').addEventListener('submit', async e => {
   }
 });
 
+// ── Reset my own password ────────────────────────────────────────────────────
+qs('#password-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const status = qs('#pw-status');
+  const newPass = qs('#pw-new').value.trim();
+  if (!newPass) { status.textContent = 'Enter a new passcode.'; return; }
+  if (!currentUser) { status.textContent = 'You must be logged in.'; return; }
+  status.textContent = 'Updating…';
+  try {
+    await loadUsers();
+    const idx = usersCache.findIndex(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
+    if (idx >= 0) {
+      // Update an existing managed user
+      const next = usersCache.slice();
+      next[idx] = { ...next[idx], passcode: newPass };
+      await saveUsers(next);
+    } else {
+      // Legacy admin (logged in via config/editor passcode) → update that passcode
+      await db.collection('config').doc('editor').set({ passcode: newPass }, { merge: true });
+    }
+    qs('#pw-new').value = '';
+    status.textContent = 'Passcode updated.';
+    showToast('Your passcode has been updated.');
+  } catch (ex) {
+    console.error(ex);
+    status.textContent = 'Could not update: ' + (ex.message || ex);
+  }
+});
+
 // Apply initial permission UI (in case a session was restored)
 if (currentUser) { ensureAnonAuth().finally(applyPermissionUI); } else { applyPermissionUI(); }
 
@@ -513,14 +543,12 @@ qs('#search-input').addEventListener('input', e => { searchQuery = e.target.valu
 // Stored in Firestore at config/appearance → { backgroundUrl }
 // Applied live for everyone via onSnapshot. Uploads go to Firebase Storage.
 
+const DEFAULT_BG = 'default-bg.svg'; // shipped in the repo, shown faded
+
 function applyBackground(url) {
-  if (url) {
-    document.body.style.setProperty('--bg-image', `url("${url}")`);
-    document.body.classList.add('has-bg');
-  } else {
-    document.body.style.removeProperty('--bg-image');
-    document.body.classList.remove('has-bg');
-  }
+  const img = url || DEFAULT_BG;
+  document.body.style.setProperty('--bg-image', `url("${img}")`);
+  document.body.classList.add('has-bg');
 }
 
 // Live-sync the background for all users
@@ -536,7 +564,7 @@ qs('#btn-bg-upload').addEventListener('click', () => qs('#bg-file-input').click(
 qs('#bg-file-input').addEventListener('change', async e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  if (!canWriteAny()) { showToast('Log in as an editor or admin first.'); return; }
+  if (!isAdmin()) { showToast('Only admins can change the background.'); return; }
   if (!file.type.startsWith('image/')) { qs('#bg-status').textContent = 'Please choose an image file.'; return; }
   if (file.size > 8 * 1024 * 1024) { qs('#bg-status').textContent = 'Image too large (max 8 MB).'; return; }
 
@@ -559,7 +587,7 @@ qs('#bg-file-input').addEventListener('change', async e => {
 
 // Remove the background (reset to default paper)
 qs('#btn-bg-remove').addEventListener('click', async () => {
-  if (!canWriteAny()) { showToast('Log in as an editor or admin first.'); return; }
+  if (!isAdmin()) { showToast('Only admins can change the background.'); return; }
   qs('#bg-status').textContent = 'Removing…';
   try {
     await db.collection('config').doc('appearance').set({ backgroundUrl: '' }, { merge: true });

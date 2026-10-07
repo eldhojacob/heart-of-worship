@@ -77,13 +77,14 @@ body.has-bg::before {
   background-position: center;
   background-attachment: fixed;
 }
-/* Readability overlay so cards/text stay legible over any photo */
+/* Readability overlay so cards/text stay legible over any photo.
+   The default background sits faded under a strong paper wash (like a soft shadow). */
 body.has-bg::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: rgba(245, 240, 232, .72);
+  background: rgba(245, 240, 232, .82);
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
