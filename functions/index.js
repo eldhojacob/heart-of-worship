@@ -2,10 +2,10 @@
  * Heart of Worship — verifyPasscode Cloud Function
  *
  * POST { passcode: string }
- * → 200 { customToken }           success
- * → 403 { error, attemptsRemaining }  wrong passcode
- * → 429 { error, waitSeconds }        locked out
- * → 500 { error }                     server error
+ * → 200 { customToken }                    success
+ * → 403 { error, attemptsRemaining }       wrong passcode
+ * → 429 { error, waitSeconds }             locked out
+ * → 500 { error }                          server error
  */
 const { onRequest } = require('firebase-functions/v2/https');
 const admin  = require('firebase-admin');
@@ -17,7 +17,6 @@ const db = admin.firestore();
 const META_DOC     = db.collection('_meta').doc('passcodeAttempts');
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS   = 15 * 60 * 1000; // 15 min
-const SESSION_MINS = 60;
 
 exports.verifyPasscode = onRequest(
   { cors: true, secrets: ['PASSCODE_SECRET'] },
@@ -59,7 +58,8 @@ exports.verifyPasscode = onRequest(
       if (result.locked) return res.status(429).json({ error: 'Too many attempts', waitSeconds: result.waitSeconds });
       if (result.wrong)  return res.status(403).json({ error: 'Incorrect passcode', attemptsRemaining: result.attemptsRemaining, lockedUntil: result.lockedOut });
 
-      const token = await admin.auth().createCustomToken('editor-session', { editor: true, exp: Math.floor(Date.now() / 1000) + SESSION_MINS * 60 });
+      // Fix: remove reserved 'exp' claim — Firebase sets token expiry automatically
+      const token = await admin.auth().createCustomToken('editor-session', { editor: true });
       return res.status(200).json({ customToken: token });
     } catch (err) {
       console.error(err);
