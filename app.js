@@ -1,6 +1,12 @@
 /**
  * Heart of Worship — app.js
  * Vanilla JS single-file application.
+ *
+ * Editing model (Option A — no Cloud Function):
+ *   - A passcode is stored in Firestore at  /config/editor  → { passcode: "..." }
+ *   - When an editor enters the passcode, the app compares it client-side.
+ *   - On match, the app signs in anonymously (Firebase Anonymous Auth).
+ *   - Security rules allow writes only for signed-in users.
  */
 
 // ── Firebase config ────────────────────────────────────────────────────────
@@ -12,9 +18,6 @@ const FIREBASE_CONFIG = {
   messagingSenderId: '249170805695',
   appId:             '1:249170805695:web:9fb0faa941ca1e4561970a',
 };
-
-// Cloud Function URL
-const VERIFY_PASSCODE_URL = 'https://us-central1-heart-of-worship-spwc.cloudfunctions.net/verifyPasscode';
 
 // ── Firebase init ──────────────────────────────────────────────────────────
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -134,8 +137,11 @@ db.collection('songs').orderBy('title').onSnapshot(
 );
 
 // ── Auth state ─────────────────────────────────────────────────────────────
+// isEditor is driven by a local flag set after a correct passcode, combined
+// with being signed in anonymously. Signing out drops the flag.
 auth.onAuthStateChanged(user => {
-  isEditor = !!user;
+  const unlocked = sessionStorage.getItem('hw_editor') === '1';
+  isEditor = !!user && unlocked;
   document.body.classList.toggle('is-editor', isEditor);
   qs('#btn-unlock').textContent = isEditor ? '🔓 Lock editing' : '🔒 Unlock editing';
   if (isEditor && !qs('.add-song-btn')) {
@@ -145,12 +151,19 @@ auth.onAuthStateChanged(user => {
     qs('.toolbar').insertAdjacentElement('afterend', div);
     qs('#btn-add-song').addEventListener('click', openAddForm);
   }
-  if (!isEditor) showToast('Editor session ended.');
 });
 
-// ── Passcode modal ─────────────────────────────────────────────────────────
+// ── Passcode modal (client-side check against Firestore config) ─────────────
 qs('#btn-unlock').addEventListener('click', () => {
-  if (isEditor) { auth.signOut(); return; }
+  if (isEditor) {
+    sessionStorage.removeItem('hw_editor');
+    auth.signOut();
+    isEditor = false;
+    document.body.classList.remove('is-editor');
+    qs('#btn-unlock').textContent = '🔒 Unlock editing';
+    showToast('Editing locked.');
+    return;
+  }
   qs('#passcode-input').value = '';
   qs('#passcode-error').hidden = true;
   qs('#passcode-modal').showModal();
@@ -162,20 +175,40 @@ qs('#passcode-form').addEventListener('submit', async e => {
   e.preventDefault();
   const btn = qs('[type=submit]', e.target);
   const err = qs('#passcode-error');
+  const entered = qs('#passcode-input').value.trim();
   btn.disabled = true; btn.textContent = 'Checking…'; err.hidden = true;
   try {
-    const res  = await fetch(VERIFY_PASSCODE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passcode: qs('#passcode-input').value }) });
-    const data = await res.json();
-    if (!res.ok) {
-      err.textContent = data.waitSeconds ? `Too many attempts. Try again in ${data.waitSeconds}s.` : `Incorrect passcode. ${data.attemptsRemaining ?? ''} attempt(s) remaining.`;
+    const snap = await db.collection('config').doc('editor').get();
+    const stored = snap.exists ? (snap.data().passcode || '') : '';
+    if (!stored) {
+      err.textContent = 'No passcode is set up yet. Add it in Firestore (config/editor).';
       err.hidden = false;
-    } else {
-      await auth.signInWithCustomToken(data.customToken);
+    } else if (entered === stored) {
+      await auth.signInAnonymously();
+      sessionStorage.setItem('hw_editor', '1');
+      isEditor = true;
+      document.body.classList.add('is-editor');
+      qs('#btn-unlock').textContent = '🔓 Lock editing';
+      if (!qs('.add-song-btn')) {
+        const div = document.createElement('div');
+        div.className = 'add-song-btn';
+        div.innerHTML = '<button class="btn btn--primary" id="btn-add-song">+ Add Song</button>';
+        qs('.toolbar').insertAdjacentElement('afterend', div);
+        qs('#btn-add-song').addEventListener('click', openAddForm);
+      }
       qs('#passcode-modal').close();
       showToast('Editing unlocked.');
+    } else {
+      err.textContent = 'Incorrect passcode.';
+      err.hidden = false;
     }
-  } catch { err.textContent = 'Could not reach server. Please try again.'; err.hidden = false; }
-  finally { btn.disabled = false; btn.textContent = 'Unlock'; }
+  } catch (ex) {
+    err.textContent = 'Could not verify passcode. Check your connection.';
+    err.hidden = false;
+    console.error(ex);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Unlock';
+  }
 });
 
 // ── Song form ──────────────────────────────────────────────────────────────
