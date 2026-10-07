@@ -165,11 +165,30 @@ qs('#btn-unlock').addEventListener('click', () => {
     return;
   }
   qs('#passcode-input').value = '';
+  qs('#passcode-input').type = 'password';
+  const tgl = qs('#btn-toggle-passcode');
+  tgl.textContent = '👁';
+  tgl.setAttribute('aria-label', 'Show passcode');
+  tgl.setAttribute('aria-pressed', 'false');
+  tgl.classList.remove('is-on');
   qs('#passcode-error').hidden = true;
   qs('#passcode-modal').showModal();
   setTimeout(() => qs('#passcode-input').focus(), 50);
 });
 qs('#btn-cancel-modal').addEventListener('click', () => qs('#passcode-modal').close());
+
+// Show/hide passcode toggle
+qs('#btn-toggle-passcode').addEventListener('click', () => {
+  const input  = qs('#passcode-input');
+  const toggle = qs('#btn-toggle-passcode');
+  const show   = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  toggle.textContent = show ? '🙈' : '👁';
+  toggle.setAttribute('aria-label', show ? 'Hide passcode' : 'Show passcode');
+  toggle.setAttribute('aria-pressed', String(show));
+  toggle.classList.toggle('is-on', show);
+  input.focus();
+});
 
 qs('#passcode-form').addEventListener('submit', async e => {
   e.preventDefault();
