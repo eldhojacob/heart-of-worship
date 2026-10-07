@@ -22,16 +22,19 @@
 
   --shadow-card:  0 1px 4px rgba(44,36,22,.10);
   --shadow-modal: 0 8px 32px rgba(44,36,22,.22);
+
+  --content-max: 900px;
 }
 
 /* ── Reset / base ────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; scroll-behavior: smooth; }
+html { font-size: 16px; scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -46,12 +49,13 @@ body {
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
 }
 .app-header__inner {
-  max-width: 900px;
+  max-width: var(--content-max);
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 .app-header__title {
   font-family: var(--font-serif);
@@ -63,7 +67,7 @@ body {
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
 .toolbar {
-  max-width: 900px;
+  max-width: var(--content-max);
   margin: 1.25rem auto .5rem;
   padding: 0 1rem;
   display: flex;
@@ -74,7 +78,7 @@ body {
   width: 100%;
   padding: .5rem .75rem;
   font-family: var(--font-sans);
-  font-size: .9375rem;
+  font-size: 1rem; /* 16px prevents iOS zoom-on-focus */
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
   background: #fff;
@@ -89,7 +93,7 @@ body {
 .chip {
   display: inline-flex;
   align-items: center;
-  padding: .25rem .625rem;
+  padding: .3rem .7rem;
   border-radius: 999px;
   font-size: .8125rem;
   font-weight: 500;
@@ -99,13 +103,14 @@ body {
   color: #7a5800;
   transition: background .15s, border-color .15s;
   user-select: none;
+  min-height: 32px;
 }
 .chip:hover   { background: var(--color-amber-light); color: var(--color-ink); }
 .chip--active { background: var(--color-amber); color: #fff; border-color: #a07800; }
 
 /* ── Song list ───────────────────────────────────────────────────────────── */
 .song-list {
-  max-width: 900px;
+  max-width: var(--content-max);
   margin: 0 auto 2rem;
   padding: 0 1rem;
   display: flex;
@@ -136,18 +141,19 @@ body {
   padding: .75rem 1rem;
   cursor: pointer;
   user-select: none;
+  flex-wrap: wrap;
 }
 .song-card__title {
   font-family: var(--font-serif);
   font-size: 1.0625rem;
   font-weight: 600;
-  flex: 1;
+  flex: 1 1 50%;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.song-card__badges { display: flex; align-items: center; gap: .375rem; flex-shrink: 0; }
+.song-card__badges { display: flex; align-items: center; gap: .375rem; flex-shrink: 0; flex-wrap: wrap; }
 
 /* Key badge */
 .key-badge {
@@ -197,19 +203,20 @@ body {
   gap: .375rem;
 }
 .song-card__detail.is-open { display: flex; }
-.detail-row { display: flex; gap: .5rem; font-size: .875rem; line-height: 1.5; }
+.detail-row { display: flex; gap: .5rem; font-size: .875rem; line-height: 1.5; flex-wrap: wrap; }
 .detail-row__label { flex-shrink: 0; font-weight: 600; color: var(--color-ink-light); min-width: 80px; }
 
 /* Add button */
-.add-song-btn { display: none; margin: .75rem auto 0; max-width: 900px; padding: 0 1rem; }
+.add-song-btn { display: none; margin: .75rem auto 0; max-width: var(--content-max); padding: 0 1rem; }
 .is-editor .add-song-btn { display: flex; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: .375rem;
-  padding: .4375rem .875rem;
+  padding: .5rem .9rem;
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: .875rem;
@@ -218,12 +225,13 @@ body {
   border: 1.5px solid transparent;
   transition: background .15s, border-color .15s, color .15s;
   white-space: nowrap;
+  min-height: 40px; /* comfortable touch target */
 }
 .btn--primary { background: var(--color-green); color: #fff; border-color: var(--color-green); }
 .btn--primary:hover { background: var(--color-green-light); border-color: var(--color-green-light); }
 .btn--ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
 .btn--ghost:hover { background: rgba(255,255,255,.12); }
-.btn--sm { font-size: .8125rem; padding: .25rem .625rem; border-radius: var(--radius-sm); }
+.btn--sm { font-size: .8125rem; padding: .3rem .7rem; border-radius: var(--radius-sm); min-height: 34px; }
 .btn--danger { background: transparent; color: var(--color-error); border-color: var(--color-error); }
 .btn--danger:hover { background: #fee2e2; }
 .btn--outline { background: transparent; color: var(--color-green); border-color: var(--color-green); }
@@ -231,21 +239,21 @@ body {
 
 /* ── Forms ───────────────────────────────────────────────────────────────── */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem 1rem; }
-@media (max-width: 540px) { .form-grid { grid-template-columns: 1fr; } }
 .field { display: flex; flex-direction: column; gap: .25rem; }
 .field--full { grid-column: 1 / -1; }
 .field__label { font-size: .8125rem; font-weight: 600; color: var(--color-ink-light); }
 .field__hint  { font-weight: 400; color: var(--color-ink-light); }
 .field__input {
-  padding: .4375rem .625rem;
+  padding: .5rem .625rem;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
-  font-size: .9375rem;
+  font-size: 1rem; /* 16px prevents iOS zoom-on-focus */
   color: var(--color-ink);
   background: #fff;
   outline: none;
   transition: border-color .15s;
+  width: 100%;
 }
 .field__input:focus { border-color: var(--color-green); box-shadow: 0 0 0 3px var(--color-green-tint); }
 .field__input.is-invalid { border-color: var(--color-error); }
@@ -260,21 +268,25 @@ body {
   margin-top: .5rem;
 }
 
-/* ── Modal ───────────────────────────────────────────────────────────────── */
+/* ── Modal (centered on all screens) ─────────────────────────────────────── */
 dialog.modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;              /* centers both axes when inset:0 + fixed */
   border: none;
   border-radius: var(--radius-lg);
   padding: 0;
   box-shadow: var(--shadow-modal);
   background: #fff;
-  max-width: 420px;
-  width: calc(100vw - 2rem);
+  width: min(420px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
 }
-dialog.modal--wide { max-width: 680px; }
-dialog::backdrop { background: rgba(44,36,22,.45); backdrop-filter: blur(2px); }
+dialog.modal--wide { width: min(680px, calc(100vw - 2rem)); }
+dialog.modal::backdrop { background: rgba(44,36,22,.45); backdrop-filter: blur(2px); }
 .modal__inner { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
 .modal__title { font-family: var(--font-serif); font-size: 1.25rem; font-weight: 600; color: var(--color-ink); }
-.modal__actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .25rem; }
+.modal__actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .25rem; flex-wrap: wrap; }
 .modal__actions .btn--ghost { color: var(--color-ink-light); border-color: var(--color-border); }
 .modal__actions .btn--ghost:hover { background: var(--color-paper); }
 
@@ -305,12 +317,41 @@ dialog::backdrop { background: rgba(44,36,22,.45); backdrop-filter: blur(2px); }
   pointer-events: none;
   transition: opacity .25s;
   z-index: 200;
-  white-space: nowrap;
+  max-width: calc(100vw - 2rem);
+  text-align: center;
 }
 .toast.is-visible { opacity: 1; }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/* ── Responsive breakpoints ──────────────────────────────────────────────── */
+
+/* Tablet and below */
+@media (max-width: 768px) {
+  .app-header__title { font-size: 1.35rem; }
+}
+
+/* Large phones / small tablets — single-column form */
 @media (max-width: 600px) {
+  html { font-size: 15px; }
+  .app-header { padding: .625rem .875rem; }
   .app-header__title { font-size: 1.2rem; }
-  .song-card__title  { font-size: 1rem; }
+  .toolbar { margin-top: 1rem; }
+  .song-card__title  { font-size: 1rem; flex-basis: 100%; }
+  .song-card__header { gap: .5rem; }
+  .form-grid { grid-template-columns: 1fr; }
+  .modal__inner { padding: 1.25rem; }
+  /* Make action buttons full-width & stacked on small screens */
+  .modal__actions { flex-direction: column-reverse; }
+  .modal__actions .btn { width: 100%; }
+  .add-song-btn .btn { width: 100%; }
+}
+
+/* Small phones */
+@media (max-width: 380px) {
+  .app-header__inner { gap: .5rem; }
+  .btn { padding: .45rem .7rem; }
+}
+
+/* Large screens / laptops — a touch more breathing room */
+@media (min-width: 1200px) {
+  :root { --content-max: 1000px; }
 }
