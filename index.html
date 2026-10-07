@@ -16,7 +16,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
 
@@ -25,12 +25,8 @@
     <div class="app-header__inner">
       <h1 class="app-header__title">Heart of Worship</h1>
       <div class="app-header__actions">
-        <button id="btn-background" class="btn btn--ghost" aria-label="Change background" hidden>
-          🖼 Background
-        </button>
-        <button id="btn-unlock" class="btn btn--ghost" aria-label="Unlock editing">
-          🔒 Unlock editing
-        </button>
+        <span id="user-badge" class="user-badge" hidden></span>
+        <button id="btn-settings" class="btn btn--ghost btn--icon" aria-label="Settings">⚙</button>
       </div>
       <input id="bg-file-input" type="file" accept="image/*" hidden />
     </div>
@@ -52,46 +48,94 @@
   <!-- Song list -->
   <main id="song-list" class="song-list" aria-live="polite" aria-label="Song list"></main>
 
-  <!-- Passcode modal -->
-  <dialog id="passcode-modal" class="modal" aria-modal="true" aria-labelledby="modal-title">
+  <!-- Settings modal -->
+  <dialog id="settings-modal" class="modal modal--wide" aria-modal="true" aria-labelledby="settings-title">
     <div class="modal__inner">
-      <h2 id="modal-title" class="modal__title">Unlock Editing</h2>
-      <form id="passcode-form" method="dialog">
-        <label class="field">
-          <span class="field__label">Passcode</span>
-          <div class="input-with-toggle">
-            <input
-              id="passcode-input"
-              class="field__input"
-              type="password"
-              autocomplete="off"
-              required
-            />
-            <button type="button" id="btn-toggle-passcode" class="input-toggle" aria-label="Show passcode" aria-pressed="false">👁</button>
-          </div>
-        </label>
-        <p id="passcode-error" class="form-error" role="alert" hidden></p>
-        <div class="modal__actions">
-          <button type="submit" class="btn btn--primary">Unlock</button>
-          <button type="button" id="btn-cancel-modal" class="btn btn--ghost">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
-
-  <!-- Background settings modal -->
-  <dialog id="bg-modal" class="modal" aria-modal="true" aria-labelledby="bg-modal-title">
-    <div class="modal__inner">
-      <h2 id="bg-modal-title" class="modal__title">Background Image</h2>
-      <p class="field__hint">Upload an image to use as the shared background for everyone. Recommended: a wide, lightly-detailed photo so song text stays readable.</p>
-      <p id="bg-status" class="field__hint" role="status"></p>
-      <div class="modal__actions" style="justify-content: space-between;">
-        <button type="button" id="btn-bg-remove" class="btn btn--danger">Remove background</button>
-        <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
-          <button type="button" id="btn-bg-upload" class="btn btn--primary">Upload image</button>
-          <button type="button" id="btn-bg-close" class="btn btn--ghost">Close</button>
-        </div>
+      <div class="settings-header">
+        <h2 id="settings-title" class="modal__title">Settings</h2>
+        <button type="button" id="btn-settings-close" class="input-toggle" aria-label="Close settings">✕</button>
       </div>
+
+      <!-- Section: Login (shown when logged out) -->
+      <section id="settings-login" class="settings-section">
+        <h3 class="settings-section__title">Log in to edit</h3>
+        <form id="login-form">
+          <label class="field">
+            <span class="field__label">Username</span>
+            <input id="login-username" class="field__input" type="text" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span class="field__label">Passcode</span>
+            <div class="input-with-toggle">
+              <input id="login-passcode" class="field__input" type="password" autocomplete="current-password" required />
+              <button type="button" id="btn-toggle-passcode" class="input-toggle" aria-label="Show passcode" aria-pressed="false">👁</button>
+            </div>
+          </label>
+          <p id="login-error" class="form-error" role="alert" hidden></p>
+          <div class="modal__actions">
+            <button type="submit" class="btn btn--primary">Log in</button>
+          </div>
+        </form>
+        <p class="field__hint" style="margin-top:.5rem;">Logging in is only needed for editors and admins. Anyone can view songs without logging in.</p>
+      </section>
+
+      <!-- Section: Logged-in account summary -->
+      <section id="settings-account" class="settings-section" hidden>
+        <h3 class="settings-section__title">Account</h3>
+        <p id="account-info" class="field__hint"></p>
+        <div class="modal__actions" style="justify-content:flex-start;">
+          <button type="button" id="btn-logout" class="btn btn--outline">Log out</button>
+        </div>
+      </section>
+
+      <!-- Section: Appearance (editors + admins) -->
+      <section id="settings-appearance" class="settings-section" hidden>
+        <h3 class="settings-section__title">Appearance</h3>
+        <p class="field__hint">Upload a shared background image for everyone. A soft overlay keeps song text readable.</p>
+        <p id="bg-status" class="field__hint" role="status"></p>
+        <div class="modal__actions" style="justify-content:flex-start;">
+          <button type="button" id="btn-bg-upload" class="btn btn--primary">Upload image</button>
+          <button type="button" id="btn-bg-remove" class="btn btn--danger">Remove background</button>
+        </div>
+      </section>
+
+      <!-- Section: User management (admins only) -->
+      <section id="settings-users" class="settings-section" hidden>
+        <h3 class="settings-section__title">Users</h3>
+        <div id="user-list" class="user-list"></div>
+
+        <h4 class="settings-subtitle">Add a user</h4>
+        <form id="adduser-form">
+          <div class="form-grid">
+            <label class="field">
+              <span class="field__label">Username</span>
+              <input id="nu-username" class="field__input" type="text" required />
+            </label>
+            <label class="field">
+              <span class="field__label">Passcode</span>
+              <input id="nu-passcode" class="field__input" type="text" required />
+            </label>
+            <label class="field field--full">
+              <span class="field__label">Role</span>
+              <select id="nu-role" class="field__input">
+                <option value="admin">Admin — full access + manage users</option>
+                <option value="editor" selected>Editor — add / edit / delete songs</option>
+                <option value="readonly">Read-only — view only</option>
+              </select>
+            </label>
+          </div>
+          <fieldset id="nu-perms" class="perm-group">
+            <legend class="field__label">Editor permissions</legend>
+            <label class="perm-check"><input type="checkbox" id="nu-add" checked /> Add songs</label>
+            <label class="perm-check"><input type="checkbox" id="nu-edit" checked /> Edit songs</label>
+            <label class="perm-check"><input type="checkbox" id="nu-delete" /> Delete songs</label>
+          </fieldset>
+          <p id="adduser-error" class="form-error" role="alert" hidden></p>
+          <div class="modal__actions" style="justify-content:flex-start;">
+            <button type="submit" class="btn btn--primary">Add user</button>
+          </div>
+        </form>
+      </section>
     </div>
   </dialog>
 
@@ -162,6 +206,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=4"></script>
 </body>
 </html>

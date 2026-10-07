@@ -56,8 +56,19 @@ function showToast(msg, ms = 3000) {
 let allSongs      = [];
 let selectedLangs = new Set();
 let searchQuery   = '';
-let isEditor      = false;
 let editingId     = null;
+
+// Current logged-in user + derived permissions
+let currentUser = null; // { username, role, perms:{add,edit,delete} }
+let usersCache  = [];   // list of users from config/users
+
+// Permission helpers
+const isLoggedIn = () => !!currentUser;
+const isAdmin    = () => !!currentUser && currentUser.role === 'admin';
+const canAdd     = () => isAdmin() || (!!currentUser && currentUser.role === 'editor' && currentUser.perms.add);
+const canEdit    = () => isAdmin() || (!!currentUser && currentUser.role === 'editor' && currentUser.perms.edit);
+const canDelete  = () => isAdmin() || (!!currentUser && currentUser.role === 'editor' && currentUser.perms.delete);
+const canWriteAny= () => canAdd() || canEdit() || canDelete();
 
 // ── Filter & derive ────────────────────────────────────────────────────────
 const deriveLanguages = songs =>
@@ -113,8 +124,8 @@ function renderSongList(songs) {
           ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
         </div>
         <div class="song-card__actions">
-          <button class="btn btn--sm btn--outline" data-action="edit"   aria-label="Edit ${song.title}">Edit</button>
-          <button class="btn btn--sm btn--danger"  data-action="delete" aria-label="Delete ${song.title}">Delete</button>
+          ${canEdit()   ? `<button class="btn btn--sm btn--outline" data-action="edit"   aria-label="Edit ${song.title}">Edit</button>` : ''}
+          ${canDelete() ? `<button class="btn btn--sm btn--danger"  data-action="delete" aria-label="Delete ${song.title}">Delete</button>` : ''}
         </div>
       </div>
       ${detailRows ? `<div class="song-card__detail">${detailRows}</div>` : ''}
@@ -137,52 +148,104 @@ db.collection('songs').orderBy('title').onSnapshot(
   err  => { console.error(err); qs('#song-list').innerHTML = '<p class="empty-state">Could not load songs. Check your connection.<br/><button class="btn btn--outline" onclick="location.reload()">Retry</button></p>'; }
 );
 
-// ── Auth state ─────────────────────────────────────────────────────────────
-// isEditor is driven by a local flag set after a correct passcode, combined
-// with being signed in anonymously. Signing out drops the flag.
-auth.onAuthStateChanged(user => {
-  const unlocked = sessionStorage.getItem('hw_editor') === '1';
-  isEditor = !!user && unlocked;
-  document.body.classList.toggle('is-editor', isEditor);
-  qs('#btn-unlock').textContent = isEditor ? '🔓 Lock editing' : '🔒 Unlock editing';
-  qs('#btn-background').hidden = !isEditor;
-  if (isEditor && !qs('.add-song-btn')) {
-    const div = document.createElement('div');
-    div.className = 'add-song-btn';
-    div.innerHTML = '<button class="btn btn--primary" id="btn-add-song">+ Add Song</button>';
-    qs('.toolbar').insertAdjacentElement('afterend', div);
-    qs('#btn-add-song').addEventListener('click', openAddForm);
-  }
-});
+// ── Users: load list (admins manage this; login reads it) ───────────────────
+// Stored in Firestore at config/users → { users: [ {username, passcode, role, perms} ] }
+// Backwards-compat: if config/editor has a passcode and no users exist yet,
+// that passcode acts as the first admin ("admin").
 
-// ── Passcode modal (client-side check against Firestore config) ─────────────
-qs('#btn-unlock').addEventListener('click', () => {
-  if (isEditor) {
-    sessionStorage.removeItem('hw_editor');
-    auth.signOut();
-    isEditor = false;
-    document.body.classList.remove('is-editor');
-    qs('#btn-unlock').textContent = '🔒 Unlock editing';
-    qs('#btn-background').hidden = true;
-    showToast('Editing locked.');
-    return;
-  }
-  qs('#passcode-input').value = '';
-  qs('#passcode-input').type = 'password';
-  const tgl = qs('#btn-toggle-passcode');
-  tgl.textContent = '👁';
-  tgl.setAttribute('aria-label', 'Show passcode');
-  tgl.setAttribute('aria-pressed', 'false');
-  tgl.classList.remove('is-on');
-  qs('#passcode-error').hidden = true;
-  qs('#passcode-modal').showModal();
-  setTimeout(() => qs('#passcode-input').focus(), 50);
-});
-qs('#btn-cancel-modal').addEventListener('click', () => qs('#passcode-modal').close());
+async function loadUsers() {
+  const snap = await db.collection('config').doc('users').get();
+  usersCache = (snap.exists && Array.isArray(snap.data().users)) ? snap.data().users : [];
+  return usersCache;
+}
 
-// Show/hide passcode toggle
+async function getLegacyAdminPasscode() {
+  const snap = await db.collection('config').doc('editor').get();
+  return snap.exists ? (snap.data().passcode || '') : '';
+}
+
+async function saveUsers(users) {
+  await db.collection('config').doc('users').set({ users }, { merge: true });
+  usersCache = users;
+}
+
+// Apply the UI state for the current permission level
+function applyPermissionUI() {
+  const loggedIn = isLoggedIn();
+  document.body.classList.toggle('is-editor', canWriteAny());
+  document.body.classList.toggle('can-add', canAdd());
+  document.body.classList.toggle('can-edit', canEdit());
+  document.body.classList.toggle('can-delete', canDelete());
+
+  // User badge in header
+  const badge = qs('#user-badge');
+  if (loggedIn) {
+    badge.hidden = false;
+    badge.textContent = `${currentUser.username} · ${currentUser.role}`;
+  } else {
+    badge.hidden = true;
+  }
+
+  // Add Song button
+  let addWrap = qs('.add-song-btn');
+  if (canAdd()) {
+    if (!addWrap) {
+      addWrap = document.createElement('div');
+      addWrap.className = 'add-song-btn';
+      addWrap.innerHTML = '<button class="btn btn--primary" id="btn-add-song">+ Add Song</button>';
+      qs('.toolbar').insertAdjacentElement('afterend', addWrap);
+      qs('#btn-add-song').addEventListener('click', openAddForm);
+    }
+    addWrap.style.display = 'flex';
+  } else if (addWrap) {
+    addWrap.style.display = 'none';
+  }
+
+  // Re-render song list so edit/delete buttons reflect permissions
+  applyFilters();
+}
+
+// Restore a session if present
+(function restoreSession() {
+  const saved = sessionStorage.getItem('hw_user');
+  if (saved) {
+    try { currentUser = JSON.parse(saved); } catch { currentUser = null; }
+  }
+})();
+
+// Ensure we have an anonymous Firebase session for writes
+async function ensureAnonAuth() {
+  if (!auth.currentUser) await auth.signInAnonymously();
+}
+
+// ── Settings modal open/close + section visibility ──────────────────────────
+function refreshSettingsSections() {
+  qs('#settings-login').hidden      = isLoggedIn();
+  qs('#settings-account').hidden    = !isLoggedIn();
+  qs('#settings-appearance').hidden = !canWriteAny();
+  qs('#settings-users').hidden      = !isAdmin();
+
+  if (isLoggedIn()) {
+    qs('#account-info').textContent =
+      `Logged in as ${currentUser.username} (${currentUser.role}).`;
+  }
+  if (isAdmin()) renderUserList();
+}
+
+qs('#btn-settings').addEventListener('click', async () => {
+  qs('#login-error').hidden = true;
+  qs('#login-username').value = '';
+  qs('#login-passcode').value = '';
+  qs('#bg-status').textContent = '';
+  try { await loadUsers(); } catch (e) { console.error(e); }
+  refreshSettingsSections();
+  qs('#settings-modal').showModal();
+});
+qs('#btn-settings-close').addEventListener('click', () => qs('#settings-modal').close());
+
+// Show/hide passcode toggle (login field)
 qs('#btn-toggle-passcode').addEventListener('click', () => {
-  const input  = qs('#passcode-input');
+  const input  = qs('#login-passcode');
   const toggle = qs('#btn-toggle-passcode');
   const show   = input.type === 'password';
   input.type = show ? 'text' : 'password';
@@ -193,51 +256,145 @@ qs('#btn-toggle-passcode').addEventListener('click', () => {
   input.focus();
 });
 
-qs('#passcode-form').addEventListener('submit', async e => {
+// ── Login ────────────────────────────────────────────────────────────────────
+qs('#login-form').addEventListener('submit', async e => {
   e.preventDefault();
+  const err = qs('#login-error');
   const btn = qs('[type=submit]', e.target);
-  const err = qs('#passcode-error');
-  const entered = qs('#passcode-input').value.trim();
-  btn.disabled = true; btn.textContent = 'Checking…'; err.hidden = true;
+  const username = qs('#login-username').value.trim();
+  const passcode = qs('#login-passcode').value.trim();
+  err.hidden = true;
+  btn.disabled = true; btn.textContent = 'Logging in…';
   try {
-    const snap = await db.collection('config').doc('editor').get();
-    const stored = snap.exists ? (snap.data().passcode || '') : '';
-    if (!stored) {
-      err.textContent = 'No passcode is set up yet. Add it in Firestore (config/editor).';
-      err.hidden = false;
-    } else if (entered === stored) {
-      await auth.signInAnonymously();
-      sessionStorage.setItem('hw_editor', '1');
-      isEditor = true;
-      document.body.classList.add('is-editor');
-      qs('#btn-unlock').textContent = '🔓 Lock editing';
-      qs('#btn-background').hidden = false;
-      if (!qs('.add-song-btn')) {
-        const div = document.createElement('div');
-        div.className = 'add-song-btn';
-        div.innerHTML = '<button class="btn btn--primary" id="btn-add-song">+ Add Song</button>';
-        qs('.toolbar').insertAdjacentElement('afterend', div);
-        qs('#btn-add-song').addEventListener('click', openAddForm);
+    await loadUsers();
+
+    // Try to match a configured user
+    let matched = usersCache.find(u =>
+      u.username.toLowerCase() === username.toLowerCase() && u.passcode === passcode);
+
+    // Legacy fallback: the original editor passcode logs in as admin
+    if (!matched) {
+      const legacy = await getLegacyAdminPasscode();
+      if (legacy && passcode === legacy) {
+        matched = { username: username || 'admin', role: 'admin', perms: { add: true, edit: true, delete: true } };
       }
-      qs('#passcode-modal').close();
-      showToast('Editing unlocked.');
-    } else {
-      err.textContent = 'Incorrect passcode.';
-      err.hidden = false;
     }
+
+    if (!matched) {
+      err.textContent = 'Incorrect username or passcode.';
+      err.hidden = false;
+      return;
+    }
+
+    // Normalise perms
+    const role  = matched.role || 'editor';
+    const perms = role === 'admin'
+      ? { add: true, edit: true, delete: true }
+      : role === 'readonly'
+        ? { add: false, edit: false, delete: false }
+        : { add: !!(matched.perms && matched.perms.add), edit: !!(matched.perms && matched.perms.edit), delete: !!(matched.perms && matched.perms.delete) };
+
+    currentUser = { username: matched.username, role, perms };
+    sessionStorage.setItem('hw_user', JSON.stringify(currentUser));
+
+    if (canWriteAny()) await ensureAnonAuth();
+
+    applyPermissionUI();
+    refreshSettingsSections();
+    showToast(`Welcome, ${currentUser.username}!`);
   } catch (ex) {
-    err.textContent = 'Could not verify passcode. Check your connection.';
-    err.hidden = false;
     console.error(ex);
+    err.textContent = 'Could not log in. Check your connection.';
+    err.hidden = false;
   } finally {
-    btn.disabled = false; btn.textContent = 'Unlock';
+    btn.disabled = false; btn.textContent = 'Log in';
   }
 });
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+qs('#btn-logout').addEventListener('click', async () => {
+  currentUser = null;
+  sessionStorage.removeItem('hw_user');
+  try { await auth.signOut(); } catch {}
+  applyPermissionUI();
+  refreshSettingsSections();
+  showToast('Logged out.');
+});
+
+// ── User management (admins) ────────────────────────────────────────────────
+function renderUserList() {
+  const wrap = qs('#user-list');
+  if (!usersCache.length) {
+    wrap.innerHTML = '<p class="field__hint">No users yet. Add one below. (You are logged in via the original admin passcode.)</p>';
+    return;
+  }
+  wrap.innerHTML = usersCache.map((u, i) => {
+    const role = u.role || 'editor';
+    const permText = role === 'editor'
+      ? ['add','edit','delete'].filter(p => u.perms && u.perms[p]).join(', ') || 'no permissions'
+      : (role === 'admin' ? 'full access' : 'view only');
+    return `<div class="user-row">
+      <div class="user-row__info">
+        <span class="user-row__name">${u.username} <span class="role-tag role-tag--${role}">${role}</span></span>
+        <span class="user-row__meta">${permText}</span>
+      </div>
+      <button class="btn btn--sm btn--danger" data-remove-user="${i}">Remove</button>
+    </div>`;
+  }).join('');
+
+  qsa('[data-remove-user]', wrap).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = parseInt(btn.dataset.removeUser, 10);
+      const u = usersCache[idx];
+      if (!u) return;
+      if (!confirm(`Remove user "${u.username}"?`)) return;
+      const next = usersCache.filter((_, i) => i !== idx);
+      try { await saveUsers(next); renderUserList(); showToast('User removed.'); }
+      catch (ex) { showToast('Could not remove user: ' + (ex.message || ex)); }
+    });
+  });
+}
+
+// Toggle the editor-permissions fieldset based on role select
+qs('#nu-role').addEventListener('change', () => {
+  qs('#nu-perms').style.display = qs('#nu-role').value === 'editor' ? 'flex' : 'none';
+});
+
+qs('#adduser-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = qs('#adduser-error');
+  err.hidden = true;
+  const username = qs('#nu-username').value.trim();
+  const passcode = qs('#nu-passcode').value.trim();
+  const role     = qs('#nu-role').value;
+  if (!username || !passcode) { err.textContent = 'Username and passcode are required.'; err.hidden = false; return; }
+  if (usersCache.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+    err.textContent = 'A user with that username already exists.'; err.hidden = false; return;
+  }
+  const newUser = { username, passcode, role };
+  if (role === 'editor') {
+    newUser.perms = { add: qs('#nu-add').checked, edit: qs('#nu-edit').checked, delete: qs('#nu-delete').checked };
+  }
+  try {
+    await saveUsers([...usersCache, newUser]);
+    renderUserList();
+    qs('#adduser-form').reset();
+    qs('#nu-perms').style.display = 'flex';
+    showToast('User added.');
+  } catch (ex) {
+    err.textContent = 'Could not add user: ' + (ex.message || ex);
+    err.hidden = false;
+  }
+});
+
+// Apply initial permission UI (in case a session was restored)
+if (currentUser) { ensureAnonAuth().finally(applyPermissionUI); } else { applyPermissionUI(); }
 
 // ── Song form ──────────────────────────────────────────────────────────────
 const FIELDS = { title: 'f-title', key: 'f-key', time: 'f-time', fTranspose: 'f-ftranspose', language: 'f-language', artist: 'f-artist', details: 'f-details', notes: 'f-notes', youtube: 'f-youtube' };
 
 function openAddForm() {
+  if (!canAdd()) { showToast('You do not have permission to add songs.'); return; }
   editingId = null;
   qs('#song-modal-title').textContent = 'Add Song';
   qs('#song-form').reset();
@@ -249,6 +406,7 @@ function openAddForm() {
 }
 
 function openEditForm(id) {
+  if (!canEdit()) { showToast('You do not have permission to edit songs.'); return; }
   const s = allSongs.find(x => x.id === id);
   if (!s) return;
   editingId = id;
@@ -324,6 +482,7 @@ qs('#song-form').addEventListener('submit', async e => {
 
 // ── Delete ─────────────────────────────────────────────────────────────────
 async function confirmDelete(id) {
+  if (!canDelete()) { showToast('You do not have permission to delete songs.'); return; }
   const s = allSongs.find(x => x.id === id);
   if (!s || !confirm(`Delete "${s.title}"? This cannot be undone.`)) return;
   try { await db.collection('songs').doc(id).delete(); showToast('Song deleted.'); }
@@ -353,27 +512,14 @@ db.collection('config').doc('appearance').onSnapshot(
   err  => console.error('appearance listener error:', err)
 );
 
-// Show the Background button only for editors
-function refreshBackgroundButton() {
-  const btn = qs('#btn-background');
-  if (btn) btn.hidden = !isEditor;
-}
-
-// Open the background modal
-qs('#btn-background').addEventListener('click', () => {
-  qs('#bg-status').textContent = '';
-  qs('#bg-modal').showModal();
-});
-qs('#btn-bg-close').addEventListener('click', () => qs('#bg-modal').close());
-
-// Trigger the hidden file picker
+// Trigger the hidden file picker (button lives in the Settings → Appearance section)
 qs('#btn-bg-upload').addEventListener('click', () => qs('#bg-file-input').click());
 
 // Handle the chosen file → upload to Storage → save URL to Firestore
 qs('#bg-file-input').addEventListener('change', async e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  if (!isEditor) { showToast('Unlock editing first.'); return; }
+  if (!canWriteAny()) { showToast('Log in as an editor or admin first.'); return; }
   if (!file.type.startsWith('image/')) { qs('#bg-status').textContent = 'Please choose an image file.'; return; }
   if (file.size > 8 * 1024 * 1024) { qs('#bg-status').textContent = 'Image too large (max 8 MB).'; return; }
 
@@ -386,7 +532,6 @@ qs('#bg-file-input').addEventListener('change', async e => {
     await db.collection('config').doc('appearance').set({ backgroundUrl: url }, { merge: true });
     status.textContent = 'Background updated!';
     showToast('Background updated.');
-    setTimeout(() => qs('#bg-modal').close(), 800);
   } catch (ex) {
     console.error(ex);
     status.textContent = 'Upload failed: ' + (ex.message || ex);
@@ -397,13 +542,12 @@ qs('#bg-file-input').addEventListener('change', async e => {
 
 // Remove the background (reset to default paper)
 qs('#btn-bg-remove').addEventListener('click', async () => {
-  if (!isEditor) { showToast('Unlock editing first.'); return; }
+  if (!canWriteAny()) { showToast('Log in as an editor or admin first.'); return; }
   qs('#bg-status').textContent = 'Removing…';
   try {
     await db.collection('config').doc('appearance').set({ backgroundUrl: '' }, { merge: true });
     qs('#bg-status').textContent = 'Background removed.';
     showToast('Background removed.');
-    setTimeout(() => qs('#bg-modal').close(), 600);
   } catch (ex) {
     console.error(ex);
     qs('#bg-status').textContent = 'Could not remove: ' + (ex.message || ex);
