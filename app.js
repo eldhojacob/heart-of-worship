@@ -229,22 +229,45 @@ async function ensureAnonAuth() {
   if (!auth.currentUser) await auth.signInAnonymously();
 }
 
-// ── Settings modal (editors/admins) — appearance + user management ──────────
-function refreshSettingsSections() {
-  qs('#settings-appearance').hidden = !isAdmin();   // background is admin-only
-  qs('#settings-users').hidden      = !isAdmin();
-  qs('#settings-password').hidden   = !isLoggedIn();
-  if (isAdmin()) renderUserList();
+// ── Settings MENU → opens individual dialogs ────────────────────────────────
+function refreshSettingsMenu() {
+  qs('#menu-background').hidden = !isAdmin();     // background is admin-only
+  qs('#menu-users').hidden      = !isAdmin();     // user management admin-only
+  qs('#menu-password').hidden   = !isLoggedIn();  // anyone logged in
 }
 
 qs('#btn-settings').addEventListener('click', async () => {
   if (!(canWriteAny() || isAdmin())) { showToast('Log in first.'); return; }
-  qs('#bg-status').textContent = '';
-  try { await loadUsers(); } catch (e) { console.error(e); }
-  refreshSettingsSections();
+  refreshSettingsMenu();
   qs('#settings-modal').showModal();
 });
 qs('#btn-settings-close').addEventListener('click', () => qs('#settings-modal').close());
+
+// Menu item → Background dialog
+qs('#menu-background').addEventListener('click', () => {
+  qs('#settings-modal').close();
+  qs('#bg-status').textContent = '';
+  qs('#background-modal').showModal();
+});
+qs('#btn-bg-close').addEventListener('click', () => qs('#background-modal').close());
+
+// Menu item → Users dialog
+qs('#menu-users').addEventListener('click', async () => {
+  qs('#settings-modal').close();
+  try { await loadUsers(); } catch (e) { console.error(e); }
+  renderUserList();
+  qs('#users-modal').showModal();
+});
+qs('#btn-users-close').addEventListener('click', () => qs('#users-modal').close());
+
+// Menu item → Reset password dialog
+qs('#menu-password').addEventListener('click', () => {
+  qs('#settings-modal').close();
+  qs('#pw-status').textContent = '';
+  qs('#pw-new').value = '';
+  qs('#password-modal').showModal();
+});
+qs('#btn-pw-close').addEventListener('click', () => qs('#password-modal').close());
 
 // ── Login modal open/close ──────────────────────────────────────────────────
 qs('#btn-login').addEventListener('click', () => {
@@ -428,6 +451,7 @@ qs('#password-form').addEventListener('submit', async e => {
     qs('#pw-new').value = '';
     status.textContent = 'Passcode updated.';
     showToast('Your passcode has been updated.');
+    setTimeout(() => qs('#password-modal').close(), 800);
   } catch (ex) {
     console.error(ex);
     status.textContent = 'Could not update: ' + (ex.message || ex);
