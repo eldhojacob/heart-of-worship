@@ -16,7 +16,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
 
@@ -26,7 +26,9 @@
       <h1 class="app-header__title">Heart of Worship</h1>
       <div class="app-header__actions">
         <span id="user-badge" class="user-badge" hidden></span>
-        <button id="btn-settings" class="btn btn--ghost btn--icon" aria-label="Settings">⚙</button>
+        <button id="btn-login" class="btn btn--ghost" aria-label="Log in">🔑 Login</button>
+        <button id="btn-settings" class="btn btn--ghost btn--icon" aria-label="Settings" hidden>⚙</button>
+        <button id="btn-logout-header" class="btn btn--ghost" aria-label="Log out" hidden>Logout</button>
       </div>
       <input id="bg-file-input" type="file" accept="image/*" hidden />
     </div>
@@ -48,45 +50,42 @@
   <!-- Song list -->
   <main id="song-list" class="song-list" aria-live="polite" aria-label="Song list"></main>
 
-  <!-- Settings modal -->
+  <!-- Login modal -->
+  <dialog id="login-modal" class="modal" aria-modal="true" aria-labelledby="login-title">
+    <div class="modal__inner">
+      <div class="settings-header">
+        <h2 id="login-title" class="modal__title">Log in</h2>
+        <button type="button" id="btn-login-close" class="input-toggle" aria-label="Close">✕</button>
+      </div>
+      <form id="login-form">
+        <label class="field">
+          <span class="field__label">Username</span>
+          <input id="login-username" class="field__input" type="text" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span class="field__label">Passcode</span>
+          <div class="input-with-toggle">
+            <input id="login-passcode" class="field__input" type="password" autocomplete="current-password" required />
+            <button type="button" id="btn-toggle-passcode" class="input-toggle" aria-label="Show passcode" aria-pressed="false">👁</button>
+          </div>
+        </label>
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+        <div class="modal__actions">
+          <button type="submit" class="btn btn--primary">Log in</button>
+          <button type="button" id="btn-login-cancel" class="btn btn--ghost">Cancel</button>
+        </div>
+      </form>
+      <p class="field__hint" style="margin-top:.5rem;">Logging in is only needed for editors and admins. Anyone can view songs without logging in.</p>
+    </div>
+  </dialog>
+
+  <!-- Settings modal (editors/admins only) -->
   <dialog id="settings-modal" class="modal modal--wide" aria-modal="true" aria-labelledby="settings-title">
     <div class="modal__inner">
       <div class="settings-header">
         <h2 id="settings-title" class="modal__title">Settings</h2>
         <button type="button" id="btn-settings-close" class="input-toggle" aria-label="Close settings">✕</button>
       </div>
-
-      <!-- Section: Login (shown when logged out) -->
-      <section id="settings-login" class="settings-section">
-        <h3 class="settings-section__title">Log in to edit</h3>
-        <form id="login-form">
-          <label class="field">
-            <span class="field__label">Username</span>
-            <input id="login-username" class="field__input" type="text" autocomplete="username" required />
-          </label>
-          <label class="field">
-            <span class="field__label">Passcode</span>
-            <div class="input-with-toggle">
-              <input id="login-passcode" class="field__input" type="password" autocomplete="current-password" required />
-              <button type="button" id="btn-toggle-passcode" class="input-toggle" aria-label="Show passcode" aria-pressed="false">👁</button>
-            </div>
-          </label>
-          <p id="login-error" class="form-error" role="alert" hidden></p>
-          <div class="modal__actions">
-            <button type="submit" class="btn btn--primary">Log in</button>
-          </div>
-        </form>
-        <p class="field__hint" style="margin-top:.5rem;">Logging in is only needed for editors and admins. Anyone can view songs without logging in.</p>
-      </section>
-
-      <!-- Section: Logged-in account summary -->
-      <section id="settings-account" class="settings-section" hidden>
-        <h3 class="settings-section__title">Account</h3>
-        <p id="account-info" class="field__hint"></p>
-        <div class="modal__actions" style="justify-content:flex-start;">
-          <button type="button" id="btn-logout" class="btn btn--outline">Log out</button>
-        </div>
-      </section>
 
       <!-- Section: Appearance (editors + admins) -->
       <section id="settings-appearance" class="settings-section" hidden>
@@ -206,6 +205,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=5"></script>
 </body>
 </html>

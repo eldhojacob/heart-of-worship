@@ -177,13 +177,24 @@ function applyPermissionUI() {
   document.body.classList.toggle('can-edit', canEdit());
   document.body.classList.toggle('can-delete', canDelete());
 
-  // User badge in header
-  const badge = qs('#user-badge');
+  // Header buttons
+  const badge   = qs('#user-badge');
+  const btnLogin = qs('#btn-login');
+  const btnGear  = qs('#btn-settings');
+  const btnOut   = qs('#btn-logout-header');
+
   if (loggedIn) {
     badge.hidden = false;
     badge.textContent = `${currentUser.username} · ${currentUser.role}`;
+    btnLogin.hidden = true;
+    // Gear only for those who can change settings (editors/admins)
+    btnGear.hidden = !canWriteAny();
+    btnOut.hidden = false;
   } else {
     badge.hidden = true;
+    btnLogin.hidden = false;
+    btnGear.hidden = true;
+    btnOut.hidden = true;
   }
 
   // Add Song button
@@ -218,30 +229,46 @@ async function ensureAnonAuth() {
   if (!auth.currentUser) await auth.signInAnonymously();
 }
 
-// ── Settings modal open/close + section visibility ──────────────────────────
+// ── Settings modal (editors/admins) — appearance + user management ──────────
 function refreshSettingsSections() {
-  qs('#settings-login').hidden      = isLoggedIn();
-  qs('#settings-account').hidden    = !isLoggedIn();
   qs('#settings-appearance').hidden = !canWriteAny();
   qs('#settings-users').hidden      = !isAdmin();
-
-  if (isLoggedIn()) {
-    qs('#account-info').textContent =
-      `Logged in as ${currentUser.username} (${currentUser.role}).`;
-  }
   if (isAdmin()) renderUserList();
 }
 
 qs('#btn-settings').addEventListener('click', async () => {
-  qs('#login-error').hidden = true;
-  qs('#login-username').value = '';
-  qs('#login-passcode').value = '';
+  if (!canWriteAny()) { showToast('Log in as an editor or admin first.'); return; }
   qs('#bg-status').textContent = '';
   try { await loadUsers(); } catch (e) { console.error(e); }
   refreshSettingsSections();
   qs('#settings-modal').showModal();
 });
 qs('#btn-settings-close').addEventListener('click', () => qs('#settings-modal').close());
+
+// ── Login modal open/close ──────────────────────────────────────────────────
+qs('#btn-login').addEventListener('click', () => {
+  qs('#login-error').hidden = true;
+  qs('#login-username').value = '';
+  qs('#login-passcode').value = '';
+  const inp = qs('#login-passcode');
+  inp.type = 'password';
+  const tgl = qs('#btn-toggle-passcode');
+  tgl.textContent = '👁';
+  tgl.classList.remove('is-on');
+  qs('#login-modal').showModal();
+  setTimeout(() => qs('#login-username').focus(), 50);
+});
+qs('#btn-login-close').addEventListener('click', () => qs('#login-modal').close());
+qs('#btn-login-cancel').addEventListener('click', () => qs('#login-modal').close());
+
+// Logout from header
+qs('#btn-logout-header').addEventListener('click', async () => {
+  currentUser = null;
+  sessionStorage.removeItem('hw_user');
+  try { await auth.signOut(); } catch {}
+  applyPermissionUI();
+  showToast('Logged out.');
+});
 
 // Show/hide passcode toggle (login field)
 qs('#btn-toggle-passcode').addEventListener('click', () => {
@@ -300,7 +327,7 @@ qs('#login-form').addEventListener('submit', async e => {
     if (canWriteAny()) await ensureAnonAuth();
 
     applyPermissionUI();
-    refreshSettingsSections();
+    qs('#login-modal').close();
     showToast(`Welcome, ${currentUser.username}!`);
   } catch (ex) {
     console.error(ex);
@@ -309,16 +336,6 @@ qs('#login-form').addEventListener('submit', async e => {
   } finally {
     btn.disabled = false; btn.textContent = 'Log in';
   }
-});
-
-// ── Logout ────────────────────────────────────────────────────────────────────
-qs('#btn-logout').addEventListener('click', async () => {
-  currentUser = null;
-  sessionStorage.removeItem('hw_user');
-  try { await auth.signOut(); } catch {}
-  applyPermissionUI();
-  refreshSettingsSections();
-  showToast('Logged out.');
 });
 
 // ── User management (admins) ────────────────────────────────────────────────
