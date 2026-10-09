@@ -206,6 +206,12 @@ body.has-bg::after {
   padding-bottom: .25rem;
   border-bottom: 1px solid rgba(45,80,22,.25);
 }
+.sunday-empty {
+  font-size: .82rem;
+  color: var(--color-ink-light);
+  font-style: italic;
+  padding: .5rem .25rem;
+}
 
 /* Sunday toggle button on cards */
 .btn--sunday { background: transparent; color: var(--color-amber); border-color: var(--color-amber); }

@@ -364,22 +364,24 @@ function renderSunday() {
   // Resolve IDs → song objects, preserving chosen order
   const songs = sundayIds.map(id => allSongs.find(s => s.id === id)).filter(Boolean);
 
-  if (!songs.length) {
-    section.hidden = true;
-    return;
-  }
+  // The Sunday window is always visible — even when empty.
   section.hidden = false;
-  clearBtn.hidden = !isAdmin();
+  clearBtn.hidden = !isAdmin() || songs.length === 0;
 
   const isMalayalam = s => (s.language || '').trim().toLowerCase() === 'malayalam';
   const ml = songs.filter(isMalayalam);
   const en = songs.filter(s => !isMalayalam(s)); // English + anything else
 
-  mlGroup.hidden = ml.length === 0;
-  enGroup.hidden = en.length === 0;
+  // Keep both language groups visible so it's clear where songs will land
+  mlGroup.hidden = false;
+  enGroup.hidden = false;
 
-  mlWrap.innerHTML = ml.map(sundayCardHtml).join('') || '';
-  enWrap.innerHTML = en.map(sundayCardHtml).join('') || '';
+  mlWrap.innerHTML = ml.length
+    ? ml.map(sundayCardHtml).join('')
+    : '<p class="sunday-empty">No Malayalam songs added yet.</p>';
+  enWrap.innerHTML = en.length
+    ? en.map(sundayCardHtml).join('')
+    : '<p class="sunday-empty">No English songs added yet.</p>';
 
   [mlWrap, enWrap].forEach(wrap => {
     qsa('.song-card', wrap).forEach(card => {
