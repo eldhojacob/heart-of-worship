@@ -150,6 +150,38 @@ body.has-bg::after {
   font-size: .9375rem;
 }
 
+/* ── Upcoming Sunday Worship ─────────────────────────────────────────────── */
+.sunday-section {
+  max-width: var(--content-max);
+  margin: 1rem auto .5rem;
+  padding: 1rem;
+  background: var(--color-green-tint);
+  border: 1px solid var(--color-green);
+  border-radius: var(--radius-lg);
+}
+.sunday-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .75rem;
+  flex-wrap: wrap;
+}
+.sunday-title {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-green);
+}
+.song-list--embedded { padding: 0; margin: 0; max-width: none; }
+
+/* Sunday toggle button on cards */
+.btn--sunday { background: transparent; color: var(--color-amber); border-color: var(--color-amber); }
+.btn--sunday:hover { background: var(--color-amber-tint); }
+.btn--sunday.is-on { background: var(--color-amber); color: #fff; border-color: #a07800; }
+/* The Sunday add button is visible to everyone, so show it always */
+.song-card__sunday { display: flex; flex-shrink: 0; }
+
 /* ── Song card ───────────────────────────────────────────────────────────── */
 .song-card {
   background: #fff;

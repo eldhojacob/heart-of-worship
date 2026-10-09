@@ -18,7 +18,7 @@
   <!-- SheetJS for Excel import -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=11" />
 </head>
 <body>
 
@@ -51,6 +51,15 @@
       <button id="btn-show-songs" class="btn btn--outline" aria-expanded="false">📋 Show all songs</button>
     </div>
   </div>
+
+  <!-- Upcoming Sunday Worship -->
+  <section id="sunday-section" class="sunday-section" aria-label="Upcoming Sunday Worship" hidden>
+    <div class="sunday-header">
+      <h2 class="sunday-title">✝ Upcoming Sunday Worship</h2>
+      <button id="btn-sunday-clear" class="btn btn--sm btn--danger" hidden>Clear all</button>
+    </div>
+    <div id="sunday-list" class="song-list song-list--embedded"></div>
+  </section>
 
   <!-- Song list -->
   <main id="song-list" class="song-list" aria-live="polite" aria-label="Song list" hidden></main>
@@ -301,6 +310,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=10"></script>
+  <script type="module" src="app.js?v=11"></script>
 </body>
 </html>

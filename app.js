@@ -62,6 +62,7 @@ let editingId     = null;
 let currentUser = null; // { username, role, perms:{add,edit,delete} }
 let usersCache  = [];   // list of users from config/users
 let songsVisible = false; // the song list is hidden on landing until shown
+let sundayIds    = [];    // song IDs on the Upcoming Sunday Worship list
 
 // Permission helpers
 const isLoggedIn = () => !!currentUser;
@@ -143,6 +144,11 @@ function renderSongList(songs) {
           ${isNonEmpty(song.language) ? `<span class="lang-tag">${song.language}</span>` : ''}
           ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
         </div>
+        <div class="song-card__sunday">
+          <button class="btn btn--sm btn--sunday${sundayIds.includes(song.id) ? ' is-on' : ''}" data-action="sunday" aria-label="Toggle Sunday for ${song.title}">
+            ${sundayIds.includes(song.id) ? '✓ On Sunday' : '★ Add to Sunday'}
+          </button>
+        </div>
         <div class="song-card__actions">
           ${canEdit()   ? `<button class="btn btn--sm btn--outline" data-action="edit"   aria-label="Edit ${song.title}">Edit</button>` : ''}
           ${canDelete() ? `<button class="btn btn--sm btn--danger"  data-action="delete" aria-label="Delete ${song.title}">Delete</button>` : ''}
@@ -158,8 +164,84 @@ function renderSongList(songs) {
     });
     qs('[data-action="edit"]',   card)?.addEventListener('click', e => { e.stopPropagation(); openEditForm(card.dataset.id); });
     qs('[data-action="delete"]', card)?.addEventListener('click', e => { e.stopPropagation(); confirmDelete(card.dataset.id); });
+    qs('[data-action="sunday"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
   });
 }
+
+// ── Upcoming Sunday Worship ──────────────────────────────────────────────────
+// Stored in Firestore at config/sunday → { songIds: [...] }. Live-synced.
+db.collection('config').doc('sunday').onSnapshot(
+  snap => { sundayIds = (snap.exists && Array.isArray(snap.data().songIds)) ? snap.data().songIds : []; renderSunday(); applyFilters(); },
+  err  => console.error('sunday listener error:', err)
+);
+
+async function toggleSunday(id) {
+  const next = sundayIds.includes(id) ? sundayIds.filter(x => x !== id) : [...sundayIds, id];
+  try {
+    await ensureAnonAuthForSunday();
+    await db.collection('config').doc('sunday').set({ songIds: next }, { merge: true });
+    showToast(sundayIds.includes(id) ? 'Removed from Sunday.' : 'Added to Sunday.');
+  } catch (ex) {
+    console.error(ex);
+    showToast('Could not update Sunday list: ' + (ex.message || ex));
+  }
+}
+
+// Anyone (even logged out) can modify the Sunday list, so make sure there is
+// at least an anonymous Firebase session when they try.
+async function ensureAnonAuthForSunday() {
+  if (!auth.currentUser) await auth.signInAnonymously();
+}
+
+function renderSunday() {
+  const section = qs('#sunday-section');
+  const list    = qs('#sunday-list');
+  const clearBtn = qs('#btn-sunday-clear');
+
+  // Resolve IDs → song objects, preserving the chosen order
+  const songs = sundayIds.map(id => allSongs.find(s => s.id === id)).filter(Boolean);
+
+  if (!songs.length) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  clearBtn.hidden = false;
+
+  list.innerHTML = songs.map(song => {
+    return `<article class="song-card" data-id="${song.id}">
+      <div class="song-card__header">
+        <span class="song-card__title">${song.title}</span>
+        <div class="song-card__badges">
+          ${renderKeyBadge(song.key)}
+          ${isNonEmpty(song.fTranspose) ? renderKeyBadge(song.fTranspose, 'female') : ''}
+          ${renderTimeSig(song.timeSignature)}
+          ${isNonEmpty(song.language) ? `<span class="lang-tag">${song.language}</span>` : ''}
+          ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
+        </div>
+        <div class="song-card__sunday">
+          <button class="btn btn--sm btn--sunday is-on" data-action="sunday-remove" aria-label="Remove ${song.title} from Sunday">✓ Remove</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+
+  qsa('.song-card', list).forEach(card => {
+    qs('[data-action="sunday-remove"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
+  });
+}
+
+qs('#btn-sunday-clear').addEventListener('click', async () => {
+  if (!confirm('Clear all songs from the Upcoming Sunday Worship list?')) return;
+  try {
+    await ensureAnonAuthForSunday();
+    await db.collection('config').doc('sunday').set({ songIds: [] }, { merge: true });
+    showToast('Sunday list cleared.');
+  } catch (ex) {
+    console.error(ex);
+    showToast('Could not clear: ' + (ex.message || ex));
+  }
+});
 
 // ── Firestore subscription ─────────────────────────────────────────────────
 qs('#song-list').innerHTML = '<div class="spinner"></div>';
