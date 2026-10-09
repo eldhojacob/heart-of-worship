@@ -223,6 +223,10 @@ body.has-bg::after {
   overflow: hidden;
   transition: box-shadow .15s;
 }
+/* Allow the chord chart inside an expanded card to scroll horizontally */
+.song-card__detail,
+.song-card__detail .detail-row { min-width: 0; max-width: 100%; }
+.song-card__detail .detail-row { overflow: hidden; }
 .song-card:hover { box-shadow: 0 2px 8px rgba(44,36,22,.14); }
 .song-card__header {
   display: flex;
@@ -364,6 +368,7 @@ body.has-bg::after {
   font-family: 'Courier New', Consolas, monospace;
   font-size: 14px;
   line-height: 1.4;
+  display: block;
   overflow-x: auto;            /* scroll sideways on small screens */
   -webkit-overflow-scrolling: touch;
   background: #fff;
@@ -373,6 +378,7 @@ body.has-bg::after {
   margin-top: .5rem;
   color: var(--color-ink);
   width: 100%;
+  max-width: 100%;
 }
 /* Chord / Lyrics view buttons */
 .chart-view-buttons {
