@@ -139,6 +139,23 @@ body.has-bg::after {
 .chip:hover   { background: var(--color-amber-light); color: var(--color-ink); }
 .chip--active { background: var(--color-amber); color: #fff; border-color: #a07800; }
 
+/* ── Two-column split layout ─────────────────────────────────────────────── */
+.main-split {
+  max-width: var(--content-max);
+  margin: .5rem auto 2rem;
+  padding: 0 1rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+.split-left { display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+.split-right { margin: 0; }           /* override sunday-section auto margins */
+/* Stack to a single column on tablets/phones */
+@media (max-width: 820px) {
+  .main-split { grid-template-columns: 1fr; }
+}
+
 /* ── Song list ───────────────────────────────────────────────────────────── */
 .song-list {
   max-width: var(--content-max);
