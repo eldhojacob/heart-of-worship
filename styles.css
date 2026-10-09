@@ -411,6 +411,45 @@ body.has-bg::after {
 .perm-check { display: inline-flex; align-items: center; gap: .35rem; font-size: .875rem; cursor: pointer; }
 .perm-check input { width: 1rem; height: 1rem; }
 
+/* ── Import songs ────────────────────────────────────────────────────────── */
+.import-options { display: flex; flex-direction: column; gap: 1rem; }
+.import-options code {
+  font-size: .78rem;
+  background: var(--color-paper-dark);
+  padding: .1rem .3rem;
+  border-radius: 3px;
+  word-break: break-word;
+}
+.import-preview {
+  border-top: 1px solid var(--color-paper-dark);
+  padding-top: .75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.import-rows {
+  max-height: 240px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .5rem;
+  border-radius: var(--radius-sm);
+  font-size: .82rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+}
+.import-row--ok  { border-left: 3px solid var(--color-green); }
+.import-row--bad { border-left: 3px solid var(--color-error); background: #fff5f5; }
+.import-row__title { font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.import-row__detail { color: var(--color-ink-light); flex-shrink: 0; }
+.import-row__err { color: var(--color-error); flex-shrink: 0; font-size: .75rem; }
+
 /* ── Modal (centered on all screens) ─────────────────────────────────────── */
 dialog.modal {
   position: fixed;

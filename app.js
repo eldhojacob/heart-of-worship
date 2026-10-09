@@ -197,15 +197,18 @@ function applyPermissionUI() {
     btnOut.hidden = true;
   }
 
-  // Add Song button
+  // Add Song + Import buttons
   let addWrap = qs('.add-song-btn');
   if (canAdd()) {
     if (!addWrap) {
       addWrap = document.createElement('div');
       addWrap.className = 'add-song-btn';
-      addWrap.innerHTML = '<button class="btn btn--primary" id="btn-add-song">+ Add Song</button>';
+      addWrap.innerHTML =
+        '<button class="btn btn--primary" id="btn-add-song">+ Add Song</button>' +
+        '<button class="btn btn--outline" id="btn-import-song" style="margin-left:.5rem;">⬆ Import</button>';
       qs('.toolbar').insertAdjacentElement('afterend', addWrap);
       qs('#btn-add-song').addEventListener('click', openAddForm);
+      qs('#btn-import-song').addEventListener('click', openImportDialog);
     }
     addWrap.style.display = 'flex';
   } else if (addWrap) {
@@ -562,6 +565,178 @@ async function confirmDelete(id) {
 
 // ── Search ─────────────────────────────────────────────────────────────────
 qs('#search-input').addEventListener('input', e => { searchQuery = e.target.value; applyFilters(); });
+
+// ── Import songs (CSV / Excel / pasted text) ────────────────────────────────
+const IMPORT_FIELDS = ['title','key','timesignature','ftranspose','language','artist','details','notes','youtube'];
+let importParsed = []; // [{ data:{...}, valid:bool, error:'' }]
+
+function openImportDialog() {
+  if (!canAdd()) { showToast('You do not have permission to add songs.'); return; }
+  qs('#import-paste').value = '';
+  qs('#import-preview').hidden = true;
+  qs('#import-rows').innerHTML = '';
+  qs('#import-summary').textContent = '';
+  qs('#import-error').hidden = true;
+  qs('#btn-import-confirm').disabled = true;
+  importParsed = [];
+  qs('#import-modal').showModal();
+}
+qs('#btn-import-close').addEventListener('click', () => qs('#import-modal').close());
+qs('#btn-import-cancel').addEventListener('click', () => qs('#import-modal').close());
+
+// Normalise a header name → our canonical field key
+function normaliseHeader(h) {
+  const k = (h || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  // map a few friendly aliases
+  if (k === 'timesig' || k === 'time' || k === 'timesignature') return 'timesignature';
+  if (k === 'femalekey' || k === 'ftranspose' || k === 'femaletranspose') return 'ftranspose';
+  return k;
+}
+
+// Turn an array-of-arrays (rows) into validated song objects
+function buildFromRows(rows) {
+  if (!rows.length) return [];
+  const headers = rows[0].map(normaliseHeader);
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every(c => String(c ?? '').trim() === '')) continue; // skip blank lines
+    const rec = {};
+    headers.forEach((h, idx) => {
+      if (IMPORT_FIELDS.includes(h)) rec[h] = String(row[idx] ?? '').trim();
+    });
+    const data = {
+      title:         rec.title || '',
+      key:           rec.key || '',
+      timeSignature: rec.timesignature || '',
+      fTranspose:    rec.ftranspose || null,
+      language:      rec.language || null,
+      artist:        rec.artist || null,
+      details:       rec.details || null,
+      notes:         rec.notes || null,
+      youtube:       rec.youtube || null,
+    };
+    // validate
+    let error = '';
+    if (!isNonEmpty(data.title)) error = 'missing title';
+    else if (!isNonEmpty(data.key)) error = 'missing key';
+    else if (!KEY_REGEX.test(data.key)) error = 'bad key format';
+    else if (!isNonEmpty(data.timeSignature)) error = 'missing time signature';
+    else if (isNonEmpty(data.fTranspose) && !KEY_REGEX.test(data.fTranspose)) error = 'bad female-key format';
+    out.push({ data, valid: !error, error });
+  }
+  return out;
+}
+
+// Split pasted text into rows, auto-detecting tab / comma / semicolon
+function parseDelimited(text) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n').filter(l => l.length);
+  if (!lines.length) return [];
+  // detect delimiter from the header line
+  const header = lines[0];
+  const delim = header.includes('\t') ? '\t' : (header.includes(';') ? ';' : ',');
+  return lines.map(line => line.split(delim).map(c => c.trim()));
+}
+
+function renderImportPreview() {
+  const wrap = qs('#import-rows');
+  const valid = importParsed.filter(r => r.valid).length;
+  const total = importParsed.length;
+  qs('#import-summary').textContent = `${total} row(s) found · ${valid} valid · ${total - valid} will be skipped.`;
+  wrap.innerHTML = importParsed.map(r => {
+    const d = r.data;
+    if (r.valid) {
+      return `<div class="import-row import-row--ok">
+        <span class="import-row__title">${d.title}</span>
+        <span class="import-row__detail">${d.key} · ${d.timeSignature}${d.language ? ' · ' + d.language : ''}</span>
+      </div>`;
+    }
+    return `<div class="import-row import-row--bad">
+      <span class="import-row__title">${d.title || '(no title)'}</span>
+      <span class="import-row__err">⚠ ${r.error}</span>
+    </div>`;
+  }).join('');
+  qs('#import-preview').hidden = false;
+  qs('#btn-import-confirm').disabled = valid === 0;
+  qs('#import-error').hidden = true;
+}
+
+// Paste → preview
+qs('#btn-import-parse-paste').addEventListener('click', () => {
+  const text = qs('#import-paste').value;
+  if (!text.trim()) { showToast('Paste some rows first.'); return; }
+  try {
+    importParsed = buildFromRows(parseDelimited(text));
+    if (!importParsed.length) { qs('#import-error').textContent = 'No data rows found. Make sure the first row is headers.'; qs('#import-error').hidden = false; return; }
+    renderImportPreview();
+  } catch (ex) {
+    console.error(ex);
+    qs('#import-error').textContent = 'Could not parse the pasted text.';
+    qs('#import-error').hidden = false;
+  }
+});
+
+// File → preview
+qs('#btn-import-file').addEventListener('click', () => qs('#import-file-input').click());
+qs('#import-file-input').addEventListener('change', async e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    let rows;
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.csv') || file.type === 'text/csv') {
+      const text = await file.text();
+      rows = parseDelimited(text);
+    } else {
+      // Excel via SheetJS
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf, { type: 'array' });
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+    }
+    importParsed = buildFromRows(rows);
+    if (!importParsed.length) { qs('#import-error').textContent = 'No data rows found in the file.'; qs('#import-error').hidden = false; qs('#import-preview').hidden = false; return; }
+    renderImportPreview();
+  } catch (ex) {
+    console.error(ex);
+    qs('#import-error').textContent = 'Could not read the file: ' + (ex.message || ex);
+    qs('#import-error').hidden = false;
+    qs('#import-preview').hidden = false;
+  } finally {
+    e.target.value = '';
+  }
+});
+
+// Confirm → write valid songs to Firestore (batched)
+qs('#btn-import-confirm').addEventListener('click', async () => {
+  if (!canAdd()) { showToast('You do not have permission to add songs.'); return; }
+  const valid = importParsed.filter(r => r.valid);
+  if (!valid.length) return;
+  const btn = qs('#btn-import-confirm');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  try {
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    // Firestore batches cap at 500 ops; chunk to be safe
+    const chunks = [];
+    for (let i = 0; i < valid.length; i += 400) chunks.push(valid.slice(i, i + 400));
+    for (const chunk of chunks) {
+      const batch = db.batch();
+      chunk.forEach(r => {
+        const ref = db.collection('songs').doc();
+        batch.set(ref, { ...r.data, createdAt: ts, updatedAt: ts });
+      });
+      await batch.commit();
+    }
+    qs('#import-modal').close();
+    showToast(`Imported ${valid.length} song(s).`);
+  } catch (ex) {
+    console.error(ex);
+    qs('#import-error').textContent = 'Import failed: ' + (ex.message || ex);
+    qs('#import-error').hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Import valid songs';
+  }
+});
 
 // ── Shared background image ──────────────────────────────────────────────────
 // Stored in Firestore at config/appearance → { backgroundUrl }

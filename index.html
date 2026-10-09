@@ -15,8 +15,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <!-- SheetJS for Excel import -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
 
@@ -186,6 +188,49 @@
     </div>
   </dialog>
 
+  <!-- Import songs dialog -->
+  <dialog id="import-modal" class="modal modal--wide" aria-modal="true" aria-labelledby="import-title">
+    <div class="modal__inner">
+      <div class="settings-header">
+        <h2 id="import-title" class="modal__title">Import Songs</h2>
+        <button type="button" id="btn-import-close" class="input-toggle" aria-label="Close">✕</button>
+      </div>
+
+      <p class="field__hint">
+        Import multiple songs at once. The first row must be headers. Columns:
+        <code>title, key, timeSignature, fTranspose, language, artist, details, notes, youtube</code>.
+        Only <strong>title, key, timeSignature</strong> are required.
+      </p>
+
+      <div class="import-options">
+        <div class="field">
+          <span class="field__label">Option 1 — Upload a file (.csv or .xlsx)</span>
+          <button type="button" id="btn-import-file" class="btn btn--outline">Choose file…</button>
+          <input id="import-file-input" type="file" accept=".csv,.xlsx,.xls,text/csv" hidden />
+        </div>
+
+        <div class="field">
+          <span class="field__label">Option 2 — Paste rows (from Notepad or Excel)</span>
+          <textarea id="import-paste" class="field__input field__textarea" rows="6"
+            placeholder="title	key	timeSignature	language	artist&#10;Amazing Grace	G	3/4	English	John Newton&#10;How Great Thou Art	Bb	4/4	English	Carl Boberg"></textarea>
+          <button type="button" id="btn-import-parse-paste" class="btn btn--outline" style="margin-top:.5rem;">Preview pasted rows</button>
+        </div>
+      </div>
+
+      <div id="import-preview" class="import-preview" hidden>
+        <h4 class="settings-subtitle">Preview</h4>
+        <p id="import-summary" class="field__hint"></p>
+        <div id="import-rows" class="import-rows"></div>
+        <p id="import-error" class="form-error" role="alert" hidden></p>
+      </div>
+
+      <div class="modal__actions">
+        <button type="button" id="btn-import-confirm" class="btn btn--primary" disabled>Import valid songs</button>
+        <button type="button" id="btn-import-cancel" class="btn btn--ghost">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Add / Edit song modal -->
   <dialog id="song-modal" class="modal modal--wide" aria-modal="true" aria-labelledby="song-modal-title">
     <div class="modal__inner">
@@ -253,6 +298,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>
