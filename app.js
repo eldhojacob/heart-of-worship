@@ -354,27 +354,19 @@ function sundayCardHtml(song) {
 }
 
 function renderSunday() {
-  const section  = qs('#sunday-section');
   const clearBtn = qs('#btn-sunday-clear');
   const mlWrap   = qs('#sunday-list-malayalam');
   const enWrap   = qs('#sunday-list-english');
-  const mlGroup  = qs('#sunday-group-malayalam');
-  const enGroup  = qs('#sunday-group-english');
+  if (!mlWrap || !enWrap) return;
 
   // Resolve IDs → song objects, preserving chosen order
   const songs = sundayIds.map(id => allSongs.find(s => s.id === id)).filter(Boolean);
 
-  // The Sunday window is always visible — even when empty.
-  section.hidden = false;
   clearBtn.hidden = !isAdmin() || songs.length === 0;
 
   const isMalayalam = s => (s.language || '').trim().toLowerCase() === 'malayalam';
   const ml = songs.filter(isMalayalam);
   const en = songs.filter(s => !isMalayalam(s)); // English + anything else
-
-  // Keep both language groups visible so it's clear where songs will land
-  mlGroup.hidden = false;
-  enGroup.hidden = false;
 
   mlWrap.innerHTML = ml.length
     ? ml.map(sundayCardHtml).join('')
@@ -389,6 +381,13 @@ function renderSunday() {
     });
   });
 }
+
+// Open / close the Sunday Worship dialog
+qs('#btn-sunday-open').addEventListener('click', () => {
+  renderSunday();
+  qs('#sunday-modal').showModal();
+});
+qs('#btn-sunday-close').addEventListener('click', () => qs('#sunday-modal').close());
 
 qs('#btn-sunday-clear').addEventListener('click', async () => {
   if (!isAdmin()) { showToast('Only admins can clear the Sunday list.'); return; }

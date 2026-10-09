@@ -22,7 +22,7 @@
   <!-- pdf.js (legacy UMD build so it is available as window.pdfjsLib) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=22" />
 </head>
 <body>
 
@@ -56,32 +56,39 @@
   <!-- Action buttons -->
   <div class="toolbar">
     <div id="action-row" class="action-row">
+      <button id="btn-sunday-open" class="btn btn--primary action-btn">✝ Sunday Worship</button>
       <button id="btn-show-songs" class="btn btn--outline action-btn" aria-expanded="false">📋 Show all songs</button>
-      <button id="btn-add-song" class="btn btn--primary action-btn" hidden>+ Add Song</button>
+      <button id="btn-add-song" class="btn btn--outline action-btn" hidden>+ Add Song</button>
       <button id="btn-import-song" class="btn btn--outline action-btn" hidden>⬆ Import</button>
     </div>
   </div>
 
-  <!-- Upcoming Sunday Worship -->
-  <section id="sunday-section" class="sunday-section" aria-label="Upcoming Sunday Worship" hidden>
-    <div class="sunday-header">
-      <h2 class="sunday-title">✝ Upcoming Sunday Worship</h2>
-      <button id="btn-sunday-clear" class="btn btn--sm btn--danger" hidden>Clear all</button>
-    </div>
-
-    <div class="sunday-group" id="sunday-group-malayalam">
-      <h3 class="sunday-subtitle">🕊 Malayalam</h3>
-      <div id="sunday-list-malayalam" class="song-list song-list--embedded"></div>
-    </div>
-
-    <div class="sunday-group" id="sunday-group-english">
-      <h3 class="sunday-subtitle">🕊 English</h3>
-      <div id="sunday-list-english" class="song-list song-list--embedded"></div>
-    </div>
-  </section>
-
   <!-- Song list -->
   <main id="song-list" class="song-list" aria-live="polite" aria-label="Song list" hidden></main>
+
+  <!-- Upcoming Sunday Worship dialog -->
+  <dialog id="sunday-modal" class="modal modal--wide" aria-modal="true" aria-labelledby="sunday-title">
+    <div class="modal__inner">
+      <div class="settings-header">
+        <h2 id="sunday-title" class="modal__title">✝ Upcoming Sunday Worship</h2>
+        <button type="button" id="btn-sunday-close" class="input-toggle" aria-label="Close">✕</button>
+      </div>
+
+      <div class="sunday-group" id="sunday-group-malayalam">
+        <h3 class="sunday-subtitle">🕊 Malayalam</h3>
+        <div id="sunday-list-malayalam" class="song-list song-list--embedded"></div>
+      </div>
+
+      <div class="sunday-group" id="sunday-group-english">
+        <h3 class="sunday-subtitle">🕊 English</h3>
+        <div id="sunday-list-english" class="song-list song-list--embedded"></div>
+      </div>
+
+      <div class="modal__actions" style="justify-content:flex-start;">
+        <button id="btn-sunday-clear" class="btn btn--danger" hidden>Clear all</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Login modal -->
   <dialog id="login-modal" class="modal" aria-modal="true" aria-labelledby="login-title">
@@ -354,6 +361,6 @@ A thousand generations...</pre>
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=20"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>
