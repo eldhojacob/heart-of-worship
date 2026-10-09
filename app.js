@@ -56,7 +56,48 @@ function isChordLine(line) {
   return tokens.every(tok => /^[A-G][#b]?(m|maj|min|dim|aug|sus|add)?\d{0,2}(\/[A-G][#b]?)?$/.test(tok));
 }
 
-function renderChordChart(text) {
+// ── Transpose helpers ────────────────────────────────────────────────────────
+const SHARP_SCALE = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLAT_SCALE  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const FLAT_KEYS   = new Set(['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm']);
+
+function noteToIndex(note) {
+  const i = SHARP_SCALE.indexOf(note);
+  if (i >= 0) return i;
+  const j = FLAT_SCALE.indexOf(note);
+  return j; // -1 if not found
+}
+
+// Transpose a single chord token by `semitones`, choosing sharps/flats to match target
+function transposeChord(chord, semitones, useFlats) {
+  // pattern: root (+accidental), suffix, optional /bass
+  const m = chord.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/);
+  if (!m) return chord;
+  const scale = useFlats ? FLAT_SCALE : SHARP_SCALE;
+  const shift = root => {
+    const idx = noteToIndex(root);
+    if (idx < 0) return root;
+    return scale[(idx + semitones + 1200) % 12];
+  };
+  const root = shift(m[1]);
+  const suffix = m[2] || '';
+  const bass = m[3] ? '/' + shift(m[3]) : '';
+  return root + suffix + bass;
+}
+
+// Transpose a whole chord LINE while keeping character positions aligned.
+// Replaces each chord token in place, padding/truncating so columns don't drift.
+function transposeChordLine(line, semitones, useFlats) {
+  return line.replace(/[A-G][#b]?(?:m|maj|min|dim|aug|sus|add)?\d{0,2}(?:\/[A-G][#b]?)?/g, (match) => {
+    const out = transposeChord(match, semitones, useFlats);
+    // keep alignment: pad or trim to original token width
+    if (out.length < match.length) return out + ' '.repeat(match.length - out.length);
+    if (out.length > match.length) return out; // let it grow slightly (rare)
+    return out;
+  });
+}
+
+function renderChordChart(text, semitones = 0, useFlats = false) {
   // Normalise all newline styles, then render each line as its own block so
   // line breaks are guaranteed regardless of surrounding flex/CSS.
   const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
@@ -64,11 +105,15 @@ function renderChordChart(text) {
     if (line.trim() === '') return `<div class="chart-line chart-line--blank">&nbsp;</div>`;
     const trimmed = line.trim();
     let cls = 'chart-line';
-    if (/^\[.*\]$/.test(trimmed)) cls += ' chart-label';
-    else if (isChordLine(line)) cls += ' chart-chords';
+    if (/^\[.*\]$/.test(trimmed)) { cls += ' chart-label'; return `<div class="${cls}">${escapeHtml(line)}</div>`; }
+    if (isChordLine(line)) {
+      cls += ' chart-chords';
+      const shifted = semitones ? transposeChordLine(line, semitones, useFlats) : line;
+      return `<div class="${cls}">${escapeHtml(shifted)}</div>`;
+    }
     return `<div class="${cls}">${escapeHtml(line)}</div>`;
   }).join('');
-  return `<div class="chord-chart">${html}</div>`;
+  return html;
 }
 
 function showToast(msg, ms = 3000) {
@@ -160,7 +205,17 @@ function renderSongList(songs) {
       song.details && isNonEmpty(song.details) ? `<div class="detail-row"><span class="detail-row__label">Details</span><span>${song.details}</span></div>` : '',
       song.notes   && isNonEmpty(song.notes)   ? `<div class="detail-row"><span class="detail-row__label">Notes</span><span>${song.notes}</span></div>` : '',
       song.youtube && isNonEmpty(song.youtube) ? `<div class="detail-row"><span class="detail-row__label">Video</span><a href="${song.youtube}" target="_blank" rel="noopener">${song.youtube}</a></div>` : '',
-      isNonEmpty(song.chart) ? `<div class="detail-row" style="flex-direction:column; align-items:stretch;"><span class="detail-row__label">Chords &amp; Lyrics</span>${renderChordChart(song.chart)}</div>` : '',
+      isNonEmpty(song.chart) ? `<div class="detail-row" style="flex-direction:column; align-items:stretch;">
+        <div class="chart-toolbar">
+          <span class="detail-row__label">Chords &amp; Lyrics</span>
+          <label class="transpose-ctl">Transpose to:
+            <select class="transpose-select" data-song="${song.id}" data-origkey="${(song.key||'C').replace(/m$/,'')}">
+              ${SHARP_SCALE.map(k => `<option value="${k}"${k===(song.key||'C').replace(/m$/,'')?' selected':''}>${k}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div class="chord-chart" data-chart-for="${song.id}">${renderChordChart(song.chart)}</div>
+      </div>` : '',
     ].filter(Boolean).join('');
 
     return `<article class="song-card" data-id="${song.id}">
@@ -194,6 +249,22 @@ function renderSongList(songs) {
     qs('[data-action="edit"]',   card)?.addEventListener('click', e => { e.stopPropagation(); openEditForm(card.dataset.id); });
     qs('[data-action="delete"]', card)?.addEventListener('click', e => { e.stopPropagation(); confirmDelete(card.dataset.id); });
     qs('[data-action="sunday"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
+    // Transpose dropdown
+    const sel = qs('.transpose-select', card);
+    if (sel) {
+      sel.addEventListener('click', e => e.stopPropagation());
+      sel.addEventListener('change', e => {
+        e.stopPropagation();
+        const song = allSongs.find(s => s.id === card.dataset.id);
+        if (!song) return;
+        const origKey = sel.dataset.origkey || 'C';
+        const target  = sel.value;
+        const semis = ((noteToIndex(target) - noteToIndex(origKey)) % 12 + 12) % 12;
+        const useFlats = FLAT_KEYS.has(target) || target.includes('b');
+        const chartEl = qs(`[data-chart-for="${card.dataset.id}"]`, card);
+        if (chartEl) chartEl.innerHTML = renderChordChart(song.chart, semis, useFlats);
+      });
+    }
   });
 }
 
