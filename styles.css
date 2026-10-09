@@ -365,6 +365,30 @@ body.has-bg::after {
   color: var(--color-ink);
   width: 100%;
 }
+/* Chords & Lyrics collapsible toggle */
+.chart-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  width: 100%;
+  padding: .55rem .75rem;
+  margin-top: .25rem;
+  background: var(--color-green-tint);
+  border: 1px solid var(--color-green);
+  border-radius: var(--radius-sm);
+  color: var(--color-green);
+  font-family: var(--font-sans);
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.chart-toggle:hover { background: #dcebd0; }
+.chart-toggle__chev { transition: transform .2s; }
+.chart-toggle.is-open .chart-toggle__chev { transform: rotate(180deg); }
+.chart-collapse { margin-top: .5rem; }
+
 /* Transpose toolbar above the chart */
 .chart-toolbar {
   display: flex;

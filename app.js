@@ -225,15 +225,20 @@ function renderSongList(songs) {
       song.notes   && isNonEmpty(song.notes)   ? `<div class="detail-row"><span class="detail-row__label">Notes</span><span>${song.notes}</span></div>` : '',
       song.youtube && isNonEmpty(song.youtube) ? `<div class="detail-row"><span class="detail-row__label">Video</span><a href="${song.youtube}" target="_blank" rel="noopener">${song.youtube}</a></div>` : '',
       isNonEmpty(song.chart) ? `<div class="detail-row" style="flex-direction:column; align-items:stretch;">
-        <div class="chart-toolbar">
-          <span class="detail-row__label">Chords &amp; Lyrics</span>
-          <label class="transpose-ctl">Transpose to:
-            <select class="transpose-select" data-song="${song.id}" data-origkey="${(song.key||'C').replace(/m$/,'')}">
-              ${SHARP_SCALE.map(k => `<option value="${k}"${k===(song.key||'C').replace(/m$/,'')?' selected':''}>${k}</option>`).join('')}
-            </select>
-          </label>
+        <button class="chart-toggle" data-chart-toggle="${song.id}" aria-expanded="false">
+          <span>🎵 Chords &amp; Lyrics</span>
+          <span class="chart-toggle__chev">▾</span>
+        </button>
+        <div class="chart-collapse" data-chart-collapse="${song.id}" hidden>
+          <div class="chart-toolbar">
+            <label class="transpose-ctl">Transpose to:
+              <select class="transpose-select" data-song="${song.id}" data-origkey="${(song.key||'C').replace(/m$/,'')}">
+                ${SHARP_SCALE.map(k => `<option value="${k}"${k===(song.key||'C').replace(/m$/,'')?' selected':''}>${k}</option>`).join('')}
+              </select>
+            </label>
+          </div>
+          <div class="chord-chart" data-chart-for="${song.id}">${renderChordChart(song.chart)}</div>
         </div>
-        <div class="chord-chart" data-chart-for="${song.id}">${renderChordChart(song.chart)}</div>
       </div>` : '',
     ].filter(Boolean).join('');
 
@@ -268,6 +273,19 @@ function renderSongList(songs) {
     qs('[data-action="edit"]',   card)?.addEventListener('click', e => { e.stopPropagation(); openEditForm(card.dataset.id); });
     qs('[data-action="delete"]', card)?.addEventListener('click', e => { e.stopPropagation(); confirmDelete(card.dataset.id); });
     qs('[data-action="sunday"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
+    // Chords & Lyrics collapse toggle
+    const chartToggle = qs('[data-chart-toggle]', card);
+    if (chartToggle) {
+      chartToggle.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = chartToggle.getAttribute('data-chart-toggle');
+        const panel = qs(`[data-chart-collapse="${id}"]`, card);
+        const open = panel.hidden;
+        panel.hidden = !open;
+        chartToggle.setAttribute('aria-expanded', String(open));
+        chartToggle.classList.toggle('is-open', open);
+      });
+    }
     // Transpose dropdown
     const sel = qs('.transpose-select', card);
     if (sel) {
