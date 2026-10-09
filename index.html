@@ -18,7 +18,7 @@
   <!-- SheetJS for Excel import -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
 
@@ -47,8 +47,10 @@
       maxlength="255"
     />
     <div id="language-chips" class="language-filter" role="group" aria-label="Filter by language"></div>
-    <div class="toolbar__row">
-      <button id="btn-show-songs" class="btn btn--outline" aria-expanded="false">📋 Show all songs</button>
+    <div id="action-row" class="action-row">
+      <button id="btn-show-songs" class="btn btn--outline action-btn" aria-expanded="false">📋 Show all songs</button>
+      <button id="btn-add-song" class="btn btn--primary action-btn" hidden>+ Add Song</button>
+      <button id="btn-import-song" class="btn btn--outline action-btn" hidden>⬆ Import</button>
     </div>
   </div>
 
@@ -310,6 +312,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=11"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>

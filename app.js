@@ -220,7 +220,7 @@ function renderSunday() {
           ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
         </div>
         <div class="song-card__sunday">
-          <button class="btn btn--sm btn--sunday is-on" data-action="sunday-remove" aria-label="Remove ${song.title} from Sunday">✓ Remove</button>
+          <button class="btn btn--sm btn--icon-x" data-action="sunday-remove" aria-label="Remove ${song.title} from Sunday" title="Remove from Sunday">✕</button>
         </div>
       </div>
     </article>`;
@@ -299,23 +299,10 @@ function applyPermissionUI() {
     btnOut.hidden = true;
   }
 
-  // Add Song + Import buttons
-  let addWrap = qs('.add-song-btn');
-  if (canAdd()) {
-    if (!addWrap) {
-      addWrap = document.createElement('div');
-      addWrap.className = 'add-song-btn';
-      addWrap.innerHTML =
-        '<button class="btn btn--primary" id="btn-add-song">+ Add Song</button>' +
-        '<button class="btn btn--outline" id="btn-import-song" style="margin-left:.5rem;">⬆ Import</button>';
-      qs('.toolbar').insertAdjacentElement('afterend', addWrap);
-      qs('#btn-add-song').addEventListener('click', openAddForm);
-      qs('#btn-import-song').addEventListener('click', openImportDialog);
-    }
-    addWrap.style.display = 'flex';
-  } else if (addWrap) {
-    addWrap.style.display = 'none';
-  }
+  // Add Song + Import buttons (present in HTML; just toggle visibility)
+  const allowed = canAdd();
+  qs('#btn-add-song').hidden    = !allowed;
+  qs('#btn-import-song').hidden = !allowed;
 
   // Re-render song list so edit/delete buttons reflect permissions
   applyFilters();
@@ -667,6 +654,10 @@ async function confirmDelete(id) {
 
 // ── Show / hide songs toggle ─────────────────────────────────────────────────
 qs('#btn-show-songs').addEventListener('click', () => setSongsVisible(!songsVisible));
+
+// ── Add / Import buttons (wired once; shown/hidden by permissions) ──────────
+qs('#btn-add-song').addEventListener('click', openAddForm);
+qs('#btn-import-song').addEventListener('click', openImportDialog);
 
 // ── Search ─────────────────────────────────────────────────────────────────
 qs('#search-input').addEventListener('input', e => {

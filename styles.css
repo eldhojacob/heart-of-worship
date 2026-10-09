@@ -111,8 +111,13 @@ body.has-bg::after {
   transition: border-color .15s;
 }
 .search-bar:focus { border-color: var(--color-green); box-shadow: 0 0 0 3px var(--color-green-tint); }
-.toolbar__row { display: flex; }
-.toolbar__row .btn { width: 100%; }
+/* Action row: Show songs / Add / Import — equal-size buttons */
+.action-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.action-btn { flex: 1 1 0; min-width: 140px; }
+@media (max-width: 480px) {
+  .action-row { flex-direction: column; }
+  .action-btn { width: 100%; }
+}
 
 /* ── Language chips ──────────────────────────────────────────────────────── */
 .language-filter { display: flex; flex-wrap: wrap; gap: .375rem; }
@@ -181,6 +186,17 @@ body.has-bg::after {
 .btn--sunday.is-on { background: var(--color-amber); color: #fff; border-color: #a07800; }
 /* The Sunday add button is visible to everyone, so show it always */
 .song-card__sunday { display: flex; flex-shrink: 0; }
+
+/* Small X remove button for Sunday list */
+.btn--icon-x {
+  background: transparent;
+  color: var(--color-error);
+  border-color: var(--color-error);
+  font-weight: 700;
+  min-width: 2rem;
+  padding: .25rem .5rem;
+}
+.btn--icon-x:hover { background: #fee2e2; }
 
 /* ── Song card ───────────────────────────────────────────────────────────── */
 .song-card {
@@ -264,9 +280,7 @@ body.has-bg::after {
 .detail-row { display: flex; gap: .5rem; font-size: .875rem; line-height: 1.5; flex-wrap: wrap; }
 .detail-row__label { flex-shrink: 0; font-weight: 600; color: var(--color-ink-light); min-width: 80px; }
 
-/* Add button */
-.add-song-btn { display: none; margin: .75rem auto 0; max-width: var(--content-max); padding: 0 1rem; }
-.is-editor .add-song-btn { display: flex; }
+
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn {
@@ -558,7 +572,6 @@ dialog.modal::backdrop { background: rgba(44,36,22,.45); backdrop-filter: blur(2
   /* Make action buttons full-width & stacked on small screens */
   .modal__actions { flex-direction: column-reverse; }
   .modal__actions .btn { width: 100%; }
-  .add-song-btn .btn { width: 100%; }
 }
 
 /* Small phones */
