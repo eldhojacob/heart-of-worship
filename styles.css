@@ -359,10 +359,13 @@ body.has-bg::after {
 
 /* Chord-chart display (chords above lyrics) */
 .chord-chart {
+  /* Fixed px size (not rem) so it never shrinks with the mobile root font —
+     keeps monospace columns aligned on every device. */
   font-family: 'Courier New', Consolas, monospace;
-  font-size: .9rem;
+  font-size: 14px;
   line-height: 1.4;
-  overflow-x: auto;
+  overflow-x: auto;            /* scroll sideways on small screens */
+  -webkit-overflow-scrolling: touch;
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -440,8 +443,10 @@ body.has-bg::after {
 
 /* Each line is its own block; preserve internal spacing for chord alignment */
 .chord-chart .chart-line {
-  white-space: pre;
+  white-space: pre;          /* never wrap — keeps chord columns aligned */
   min-height: 1.2em;
+  width: max-content;        /* each line takes its full natural width */
+  min-width: 100%;
 }
 .chord-chart .chart-line--blank { min-height: .7em; }
 /* Section labels like [Verse 1] stand out */
