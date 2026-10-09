@@ -61,6 +61,7 @@ let editingId     = null;
 // Current logged-in user + derived permissions
 let currentUser = null; // { username, role, perms:{add,edit,delete} }
 let usersCache  = [];   // list of users from config/users
+let songsVisible = false; // the song list is hidden on landing until shown
 
 // Permission helpers
 const isLoggedIn = () => !!currentUser;
@@ -76,6 +77,13 @@ const deriveLanguages = songs =>
     .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
 function applyFilters() {
+  // The list stays hidden on the landing page until the user shows it
+  // (or starts searching / filtering).
+  if (!songsVisible) {
+    qs('#song-list').hidden = true;
+    return;
+  }
+  qs('#song-list').hidden = false;
   const q = searchQuery.trim().toLowerCase();
   const filtered = allSongs.filter(s => {
     const matchQ = !q || (s.title || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q);
@@ -83,6 +91,16 @@ function applyFilters() {
     return matchQ && matchL;
   });
   renderSongList(filtered);
+}
+
+function setSongsVisible(visible) {
+  songsVisible = visible;
+  const btn = qs('#btn-show-songs');
+  if (btn) {
+    btn.setAttribute('aria-expanded', String(visible));
+    btn.textContent = visible ? '📋 Hide songs' : '📋 Show all songs';
+  }
+  applyFilters();
 }
 
 // ── Render: chips ──────────────────────────────────────────────────────────
@@ -94,7 +112,9 @@ function renderChips() {
   qsa('.chip', c).forEach(chip => chip.addEventListener('click', () => {
     const l = chip.dataset.lang.toLowerCase();
     selectedLangs.has(l) ? selectedLangs.delete(l) : selectedLangs.add(l);
-    renderChips(); applyFilters();
+    if (!songsVisible) songsVisible = true; // selecting a filter reveals the list
+    renderChips();
+    setSongsVisible(songsVisible);
   }));
 }
 
@@ -563,8 +583,16 @@ async function confirmDelete(id) {
   catch (err) { showToast(`Delete failed: ${err.message}`); }
 }
 
+// ── Show / hide songs toggle ─────────────────────────────────────────────────
+qs('#btn-show-songs').addEventListener('click', () => setSongsVisible(!songsVisible));
+
 // ── Search ─────────────────────────────────────────────────────────────────
-qs('#search-input').addEventListener('input', e => { searchQuery = e.target.value; applyFilters(); });
+qs('#search-input').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  // Searching auto-reveals the list; clearing it does not force-hide
+  if (searchQuery.trim() && !songsVisible) { setSongsVisible(true); return; }
+  applyFilters();
+});
 
 // ── Import songs (CSV / Excel / pasted text) ────────────────────────────────
 const IMPORT_FIELDS = ['title','key','timesignature','ftranspose','language','artist','details','notes','youtube'];
