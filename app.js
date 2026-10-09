@@ -25,6 +25,12 @@ const db      = firebase.firestore();
 const auth    = firebase.auth();
 const storage = firebase.storage();
 
+// Configure pdf.js worker (used by the import feature)
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────
 const KEY_REGEX = /^[A-G][b#]?m?$/;
 
@@ -827,11 +833,11 @@ let importParsed = []; // [{ data:{...}, valid:bool, error:'' }]
 
 function openImportDialog() {
   if (!canAdd()) { showToast('You do not have permission to add songs.'); return; }
-  qs('#import-paste').value = '';
   qs('#import-preview').hidden = true;
   qs('#import-rows').innerHTML = '';
   qs('#import-summary').textContent = '';
   qs('#import-error').hidden = true;
+  qs('#import-filename').textContent = '';
   qs('#btn-import-confirm').disabled = true;
   importParsed = [];
   qs('#import-modal').showModal();
@@ -917,41 +923,121 @@ function renderImportPreview() {
   qs('#import-error').hidden = true;
 }
 
-// Paste → preview
-qs('#btn-import-parse-paste').addEventListener('click', () => {
-  const text = qs('#import-paste').value;
-  if (!text.trim()) { showToast('Paste some rows first.'); return; }
-  try {
-    importParsed = buildFromRows(parseDelimited(text));
-    if (!importParsed.length) { qs('#import-error').textContent = 'No data rows found. Make sure the first row is headers.'; qs('#import-error').hidden = false; return; }
-    renderImportPreview();
-  } catch (ex) {
-    console.error(ex);
-    qs('#import-error').textContent = 'Could not parse the pasted text.';
-    qs('#import-error').hidden = false;
-  }
-});
+// Parse a plain-text document (txt/docx/pdf extracted text) with labelled
+// fields at the top and a chords/lyrics body below. Returns one song object.
+function buildFromDocument(text) {
+  const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const rec = { title:'', key:'', timeSignature:'', fTranspose:null, language:null, artist:null, details:null, notes:null, youtube:null, chart:null };
 
-// File → preview
+  // Field label aliases → our keys
+  const labelMap = {
+    title: 'title', song: 'title', name: 'title',
+    artist: 'artist', by: 'artist', author: 'artist', composer: 'artist',
+    key: 'key',
+    time: 'timeSignature', timesignature: 'timeSignature', timesig: 'timeSignature', meter: 'timeSignature',
+    language: 'language', lang: 'language',
+    ftranspose: 'fTranspose', femalekey: 'fTranspose', female: 'fTranspose',
+    details: 'details', scripture: 'details', reference: 'details',
+    notes: 'notes', note: 'notes',
+    youtube: 'youtube', video: 'youtube', link: 'youtube',
+  };
+
+  let i = 0;
+  // Read labelled lines until we hit a blank line or a non-labelled line
+  for (; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === '') { i++; break; } // blank line ends the header block
+    const m = line.match(/^\s*([A-Za-z ]+?)\s*[:\-]\s*(.+)$/);
+    if (!m) { break; } // first non-labelled line → body starts here
+    const label = m[1].trim().toLowerCase().replace(/\s+/g, '');
+    const value = m[2].trim();
+    const field = labelMap[label];
+    if (field) rec[field] = value;
+    // if the label isn't recognised, treat it as the start of the body
+    else { break; }
+  }
+
+  // Everything from line i onwards is the chords/lyrics chart
+  const body = lines.slice(i).join('\n').trim();
+  if (body) rec.chart = body;
+
+  // If no explicit title label, use the first non-empty line as the title
+  if (!rec.title) {
+    const firstLine = lines.find(l => l.trim());
+    if (firstLine) rec.title = firstLine.trim();
+  }
+
+  // Validate (same rules as rows)
+  let error = '';
+  if (!isNonEmpty(rec.title)) error = 'missing title';
+  else if (!isNonEmpty(rec.key)) error = 'missing key';
+  else if (!KEY_REGEX.test(rec.key)) error = 'bad or missing key (e.g. G, Bm, F#)';
+  else if (!isNonEmpty(rec.timeSignature)) error = 'missing time signature';
+  else if (isNonEmpty(rec.fTranspose) && !KEY_REGEX.test(rec.fTranspose)) error = 'bad female-key format';
+  return [{ data: rec, valid: !error, error }];
+}
+
+// Extract text from a .docx file (mammoth) or .pdf (pdf.js)
+async function extractDocxText(file) {
+  const buf = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: buf });
+  return result.value || '';
+}
+async function extractPdfText(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let out = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    // Group items by their vertical position to rebuild lines
+    const rows = {};
+    content.items.forEach(it => {
+      const y = Math.round(it.transform[5]);
+      (rows[y] = rows[y] || []).push({ x: it.transform[4], s: it.str });
+    });
+    Object.keys(rows).sort((a,b) => b - a).forEach(y => {
+      const line = rows[y].sort((a,b) => a.x - b.x).map(o => o.s).join('');
+      out += line + '\n';
+    });
+    out += '\n';
+  }
+  return out;
+}
+
+// File → preview (routes by extension)
 qs('#btn-import-file').addEventListener('click', () => qs('#import-file-input').click());
 qs('#import-file-input').addEventListener('change', async e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
+  qs('#import-filename').textContent = file.name;
+  qs('#import-error').hidden = true;
+  const name = file.name.toLowerCase();
   try {
-    let rows;
-    const name = file.name.toLowerCase();
     if (name.endsWith('.csv') || file.type === 'text/csv') {
-      const text = await file.text();
-      rows = parseDelimited(text);
+      importParsed = buildFromRows(parseDelimited(await file.text()));
+    } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      importParsed = buildFromRows(XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' }));
+    } else if (name.endsWith('.txt')) {
+      importParsed = buildFromDocument(await file.text());
+    } else if (name.endsWith('.docx')) {
+      importParsed = buildFromDocument(await extractDocxText(file));
+    } else if (name.endsWith('.pdf')) {
+      importParsed = buildFromDocument(await extractPdfText(file));
+    } else if (name.endsWith('.doc')) {
+      throw new Error('Old .doc files are not supported — please save as .docx or .txt.');
     } else {
-      // Excel via SheetJS
-      const buf = await file.arrayBuffer();
-      const wb  = XLSX.read(buf, { type: 'array' });
-      const ws  = wb.Sheets[wb.SheetNames[0]];
-      rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+      throw new Error('Unsupported file type.');
     }
-    importParsed = buildFromRows(rows);
-    if (!importParsed.length) { qs('#import-error').textContent = 'No data rows found in the file.'; qs('#import-error').hidden = false; qs('#import-preview').hidden = false; return; }
+
+    if (!importParsed.length) {
+      qs('#import-error').textContent = 'No songs found in the file.';
+      qs('#import-error').hidden = false;
+      qs('#import-preview').hidden = false;
+      return;
+    }
     renderImportPreview();
   } catch (ex) {
     console.error(ex);

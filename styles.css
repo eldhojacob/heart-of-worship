@@ -559,6 +559,17 @@ body.has-bg::after {
 
 /* ── Import songs ────────────────────────────────────────────────────────── */
 .import-options { display: flex; flex-direction: column; gap: 1rem; }
+.import-example {
+  font-family: 'Courier New', monospace;
+  font-size: .78rem;
+  line-height: 1.4;
+  background: var(--color-paper-dark);
+  border-radius: var(--radius-sm);
+  padding: .6rem .75rem;
+  white-space: pre;
+  overflow-x: auto;
+  color: var(--color-ink-light);
+}
 .import-options code {
   font-size: .78rem;
   background: var(--color-paper-dark);

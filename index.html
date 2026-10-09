@@ -17,8 +17,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <!-- SheetJS for Excel import -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- mammoth.js for .docx import -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+  <!-- pdf.js (legacy UMD build so it is available as window.pdfjsLib) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
 </head>
 <body>
 
@@ -220,10 +224,21 @@
       </div>
 
       <p class="field__hint">
-        Import multiple songs at once. The first row must be headers. Columns:
-        <code>title, key, timeSignature, fTranspose, artist, details, notes, youtube, chart</code>.
-        Only <strong>title, key, timeSignature</strong> are required.
+        Upload a song file. Supported: <code>.csv</code>, <code>.xlsx</code>, <code>.txt</code>, <code>.docx</code>, <code>.pdf</code>.
       </p>
+      <p class="field__hint">
+        <strong>Spreadsheets (.csv/.xlsx):</strong> first row = headers (title, key, timeSignature, artist, …), one song per row.<br/>
+        <strong>Documents (.txt/.docx/.pdf):</strong> use labelled lines at the top, then the chords/lyrics below:
+      </p>
+      <pre class="import-example">Title: Holy Forever
+Artist: Chris Tomlin
+Key: Db
+Time: 4/4
+Language: English
+
+[Verse 1]
+C                F           C
+A thousand generations...</pre>
 
       <fieldset class="perm-group" style="gap:1.5rem;">
         <legend class="field__label">Import these songs as:</legend>
@@ -233,16 +248,10 @@
 
       <div class="import-options">
         <div class="field">
-          <span class="field__label">Option 1 — Upload a file (.csv or .xlsx)</span>
+          <span class="field__label">Choose a file</span>
           <button type="button" id="btn-import-file" class="btn btn--outline">Choose file…</button>
-          <input id="import-file-input" type="file" accept=".csv,.xlsx,.xls,text/csv" hidden />
-        </div>
-
-        <div class="field">
-          <span class="field__label">Option 2 — Paste rows (from Notepad or Excel)</span>
-          <textarea id="import-paste" class="field__input field__textarea" rows="6"
-            placeholder="title	key	timeSignature	language	artist&#10;Amazing Grace	G	3/4	English	John Newton&#10;How Great Thou Art	Bb	4/4	English	Carl Boberg"></textarea>
-          <button type="button" id="btn-import-parse-paste" class="btn btn--outline" style="margin-top:.5rem;">Preview pasted rows</button>
+          <input id="import-file-input" type="file" accept=".csv,.xlsx,.xls,.txt,.docx,.pdf,text/csv,text/plain,application/pdf" hidden />
+          <span id="import-filename" class="field__hint"></span>
         </div>
       </div>
 
@@ -341,6 +350,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=17"></script>
+  <script type="module" src="app.js?v=18"></script>
 </body>
 </html>
