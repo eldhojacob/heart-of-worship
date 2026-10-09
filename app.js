@@ -326,9 +326,11 @@ function wireCardEvents(container) {
         panel.hidden = false;
         if (view === 'lyrics') {
           toolbar.style.display = 'none';            // no transpose for lyrics
+          chartEl.classList.add('chord-chart--wrap'); // lyrics can wrap, no scroll needed
           chartEl.innerHTML = renderLyricsOnly(song.chart);
         } else {
           toolbar.style.display = '';                // show transpose
+          chartEl.classList.remove('chord-chart--wrap');
           const sel = qs('.transpose-select', card);
           if (sel) sel.value = (song.key || 'C').replace(/m$/, '');
           chartEl.innerHTML = renderChordChart(song.chart);

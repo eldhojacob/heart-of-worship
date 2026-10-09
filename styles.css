@@ -369,7 +369,8 @@ body.has-bg::after {
   font-size: 14px;
   line-height: 1.4;
   display: block;
-  overflow-x: auto;            /* scroll sideways on small screens */
+  overflow-x: scroll;          /* always allow sideways scroll */
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   background: #fff;
   border: 1px solid var(--color-border);
@@ -379,6 +380,19 @@ body.has-bg::after {
   color: var(--color-ink);
   width: 100%;
   max-width: 100%;
+}
+/* Always-visible horizontal scrollbar so users know they can slide the chart */
+.chord-chart::-webkit-scrollbar { height: 10px; }
+.chord-chart::-webkit-scrollbar-track { background: var(--color-paper-dark); border-radius: 6px; }
+.chord-chart::-webkit-scrollbar-thumb { background: var(--color-green); border-radius: 6px; }
+.chord-chart { scrollbar-color: var(--color-green) var(--color-paper-dark); scrollbar-width: thin; }
+
+/* Lyrics-only mode: wrap text, no horizontal scroll needed */
+.chord-chart--wrap { overflow-x: hidden; }
+.chord-chart--wrap .chart-line {
+  white-space: pre-wrap;
+  width: auto;
+  min-width: 0;
 }
 /* Chord / Lyrics view buttons */
 .chart-view-buttons {
