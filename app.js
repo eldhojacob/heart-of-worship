@@ -43,6 +43,34 @@ const renderTimeSig = ts => {
   return `<span class="time-sig" aria-label="Time signature ${ts}"><span class="time-sig__num">${num}</span><span class="time-sig__den">${den}</span></span>`;
 };
 
+// Escape HTML then colour chord lines / section labels
+const escapeHtml = s => String(s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// A line is treated as a "chord line" if, ignoring spaces, it only contains
+// chord-like tokens (A–G with optional accidental/quality/bass).
+function isChordLine(line) {
+  const t = line.trim();
+  if (!t) return false;
+  const tokens = t.split(/\s+/);
+  return tokens.every(tok => /^[A-G][#b]?(m|maj|min|dim|aug|sus|add)?\d{0,2}(\/[A-G][#b]?)?$/.test(tok));
+}
+
+function renderChordChart(text) {
+  const lines = String(text).split('\n');
+  const html = lines.map(line => {
+    const trimmed = line.trim();
+    if (/^\[.*\]$/.test(trimmed)) {
+      return `<span class="chart-label">${escapeHtml(line)}</span>`;
+    }
+    if (isChordLine(line)) {
+      return `<span class="chart-chords">${escapeHtml(line)}</span>`;
+    }
+    return escapeHtml(line);
+  }).join('\n');
+  return `<div class="chord-chart">${html}</div>`;
+}
+
 function showToast(msg, ms = 3000) {
   let t = qs('.toast');
   if (!t) { t = Object.assign(document.createElement('div'), { className: 'toast' }); document.body.appendChild(t); }
@@ -132,6 +160,7 @@ function renderSongList(songs) {
       song.details && isNonEmpty(song.details) ? `<div class="detail-row"><span class="detail-row__label">Details</span><span>${song.details}</span></div>` : '',
       song.notes   && isNonEmpty(song.notes)   ? `<div class="detail-row"><span class="detail-row__label">Notes</span><span>${song.notes}</span></div>` : '',
       song.youtube && isNonEmpty(song.youtube) ? `<div class="detail-row"><span class="detail-row__label">Video</span><a href="${song.youtube}" target="_blank" rel="noopener">${song.youtube}</a></div>` : '',
+      isNonEmpty(song.chart) ? `<div class="detail-row" style="flex-direction:column; align-items:stretch;"><span class="detail-row__label">Chords &amp; Lyrics</span>${renderChordChart(song.chart)}</div>` : '',
     ].filter(Boolean).join('');
 
     return `<article class="song-card" data-id="${song.id}">
@@ -554,7 +583,7 @@ qs('#password-form').addEventListener('submit', async e => {
 if (currentUser) { ensureAnonAuth().finally(applyPermissionUI); } else { applyPermissionUI(); }
 
 // ── Song form ──────────────────────────────────────────────────────────────
-const FIELDS = { title: 'f-title', key: 'f-key', time: 'f-time', fTranspose: 'f-ftranspose', language: 'f-language', artist: 'f-artist', details: 'f-details', notes: 'f-notes', youtube: 'f-youtube' };
+const FIELDS = { title: 'f-title', key: 'f-key', time: 'f-time', fTranspose: 'f-ftranspose', language: 'f-language', artist: 'f-artist', details: 'f-details', notes: 'f-notes', youtube: 'f-youtube', chart: 'f-chart' };
 
 function openAddForm() {
   if (!canAdd()) { showToast('You do not have permission to add songs.'); return; }
@@ -609,6 +638,7 @@ qs('#song-form').addEventListener('submit', async e => {
     details:       qs('#f-details').value.trim()    || null,
     notes:         qs('#f-notes').value.trim()      || null,
     youtube:       qs('#f-youtube').value.trim()    || null,
+    chart:         qs('#f-chart').value             || null,
   };
 
   const errs = validateDraft(draft);

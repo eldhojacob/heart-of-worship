@@ -18,7 +18,7 @@
   <!-- SheetJS for Excel import -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=12" />
+  <link rel="stylesheet" href="styles.css?v=13" />
 </head>
 <body>
 
@@ -300,6 +300,12 @@
             <input id="f-youtube" class="field__input" type="url" placeholder="https://youtube.com/…" maxlength="500" />
             <span class="field__error" id="err-youtube" role="alert"></span>
           </label>
+
+          <label class="field field--full">
+            <span class="field__label">Chords &amp; Lyrics <span class="field__hint">(chords above lyrics; use [Verse], [Chorus] labels)</span></span>
+            <textarea id="f-chart" class="field__input field__chart" maxlength="10000" rows="10"
+              placeholder="[Verse 1]&#10;  C                        F                 C&#10;A thousand generations falling down in worship&#10;   Am               G              F&#10;To sing the song of ages to the Lamb"></textarea>
+          </label>
         </div>
 
         <p id="song-form-error" class="form-error" role="alert" hidden></p>
@@ -312,6 +318,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=12"></script>
+  <script type="module" src="app.js?v=13"></script>
 </body>
 </html>
