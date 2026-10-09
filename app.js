@@ -28,6 +28,25 @@ const storage = firebase.storage();
 // ── Constants ──────────────────────────────────────────────────────────────
 const KEY_REGEX = /^[A-G][b#]?m?$/;
 
+// All common major + minor keys for the dropdowns
+const KEY_OPTIONS = (() => {
+  const majors = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const minors = majors.map(k => k + 'm');
+  return [...majors, ...minors];
+})();
+
+function populateKeyDropdowns() {
+  const keyEl = document.querySelector('#f-key');
+  const fEl   = document.querySelector('#f-ftranspose');
+  if (keyEl && keyEl.options.length <= 1) {
+    KEY_OPTIONS.forEach(k => keyEl.insertAdjacentHTML('beforeend', `<option value="${k}">${k}</option>`));
+  }
+  if (fEl && fEl.options.length <= 1) {
+    KEY_OPTIONS.forEach(k => fEl.insertAdjacentHTML('beforeend', `<option value="${k}">${k}</option>`));
+  }
+}
+populateKeyDropdowns();
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 const qs  = (sel, ctx = document) => ctx.querySelector(sel);
 const qsa = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
@@ -293,12 +312,32 @@ async function ensureAnonAuthForSunday() {
   if (!auth.currentUser) await auth.signInAnonymously();
 }
 
-function renderSunday() {
-  const section = qs('#sunday-section');
-  const list    = qs('#sunday-list');
-  const clearBtn = qs('#btn-sunday-clear');
+function sundayCardHtml(song) {
+  return `<article class="song-card" data-id="${song.id}">
+    <div class="song-card__header">
+      <span class="song-card__title">${song.title}</span>
+      <div class="song-card__badges">
+        ${renderKeyBadge(song.key)}
+        ${isNonEmpty(song.fTranspose) ? renderKeyBadge(song.fTranspose, 'female') : ''}
+        ${renderTimeSig(song.timeSignature)}
+        ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
+      </div>
+      <div class="song-card__sunday">
+        <button class="btn btn--sm btn--icon-x" data-action="sunday-remove" aria-label="Remove ${song.title} from Sunday" title="Remove from Sunday">✕</button>
+      </div>
+    </div>
+  </article>`;
+}
 
-  // Resolve IDs → song objects, preserving the chosen order
+function renderSunday() {
+  const section  = qs('#sunday-section');
+  const clearBtn = qs('#btn-sunday-clear');
+  const mlWrap   = qs('#sunday-list-malayalam');
+  const enWrap   = qs('#sunday-list-english');
+  const mlGroup  = qs('#sunday-group-malayalam');
+  const enGroup  = qs('#sunday-group-english');
+
+  // Resolve IDs → song objects, preserving chosen order
   const songs = sundayIds.map(id => allSongs.find(s => s.id === id)).filter(Boolean);
 
   if (!songs.length) {
@@ -306,33 +345,28 @@ function renderSunday() {
     return;
   }
   section.hidden = false;
-  clearBtn.hidden = false;
+  clearBtn.hidden = !isAdmin();
 
-  list.innerHTML = songs.map(song => {
-    return `<article class="song-card" data-id="${song.id}">
-      <div class="song-card__header">
-        <span class="song-card__title">${song.title}</span>
-        <div class="song-card__badges">
-          ${renderKeyBadge(song.key)}
-          ${isNonEmpty(song.fTranspose) ? renderKeyBadge(song.fTranspose, 'female') : ''}
-          ${renderTimeSig(song.timeSignature)}
-          ${isNonEmpty(song.language) ? `<span class="lang-tag">${song.language}</span>` : ''}
-          ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
-        </div>
-        <div class="song-card__sunday">
-          <button class="btn btn--sm btn--icon-x" data-action="sunday-remove" aria-label="Remove ${song.title} from Sunday" title="Remove from Sunday">✕</button>
-        </div>
-      </div>
-    </article>`;
-  }).join('');
+  const isMalayalam = s => (s.language || '').trim().toLowerCase() === 'malayalam';
+  const ml = songs.filter(isMalayalam);
+  const en = songs.filter(s => !isMalayalam(s)); // English + anything else
 
-  qsa('.song-card', list).forEach(card => {
-    qs('[data-action="sunday-remove"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
+  mlGroup.hidden = ml.length === 0;
+  enGroup.hidden = en.length === 0;
+
+  mlWrap.innerHTML = ml.map(sundayCardHtml).join('') || '';
+  enWrap.innerHTML = en.map(sundayCardHtml).join('') || '';
+
+  [mlWrap, enWrap].forEach(wrap => {
+    qsa('.song-card', wrap).forEach(card => {
+      qs('[data-action="sunday-remove"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
+    });
   });
 }
 
 qs('#btn-sunday-clear').addEventListener('click', async () => {
-  if (!confirm('Clear all songs from the Upcoming Sunday Worship list?')) return;
+  if (!isAdmin()) { showToast('Only admins can clear the Sunday list.'); return; }
+  if (!confirm('Clear ALL songs from the Upcoming Sunday Worship list?\n\nThis cannot be undone.')) return;
   try {
     await ensureAnonAuthForSunday();
     await db.collection('config').doc('sunday').set({ songIds: [] }, { merge: true });
@@ -406,6 +440,7 @@ function applyPermissionUI() {
 
   // Re-render song list so edit/delete buttons reflect permissions
   applyFilters();
+  if (typeof renderSunday === 'function') renderSunday();
 }
 
 // Restore a session if present
@@ -769,7 +804,7 @@ qs('#search-input').addEventListener('input', e => {
 });
 
 // ── Import songs (CSV / Excel / pasted text) ────────────────────────────────
-const IMPORT_FIELDS = ['title','key','timesignature','ftranspose','language','artist','details','notes','youtube'];
+const IMPORT_FIELDS = ['title','key','timesignature','ftranspose','language','artist','details','notes','youtube','chart'];
 let importParsed = []; // [{ data:{...}, valid:bool, error:'' }]
 
 function openImportDialog() {
@@ -817,6 +852,7 @@ function buildFromRows(rows) {
       details:       rec.details || null,
       notes:         rec.notes || null,
       youtube:       rec.youtube || null,
+      chart:         rec.chart || null,
     };
     // validate
     let error = '';
@@ -914,6 +950,9 @@ qs('#btn-import-confirm').addEventListener('click', async () => {
   if (!canAdd()) { showToast('You do not have permission to add songs.'); return; }
   const valid = importParsed.filter(r => r.valid);
   if (!valid.length) return;
+  // Language chosen via the radio buttons applies to all imported songs
+  const langRadio = document.querySelector('input[name="import-lang"]:checked');
+  const importLang = langRadio ? langRadio.value : null;
   const btn = qs('#btn-import-confirm');
   btn.disabled = true; btn.textContent = 'Importing…';
   try {
@@ -925,7 +964,9 @@ qs('#btn-import-confirm').addEventListener('click', async () => {
       const batch = db.batch();
       chunk.forEach(r => {
         const ref = db.collection('songs').doc();
-        batch.set(ref, { ...r.data, createdAt: ts, updatedAt: ts });
+        // Force the chosen language (fallback to any language already in the row)
+        const data = { ...r.data, language: importLang || r.data.language || null };
+        batch.set(ref, { ...data, createdAt: ts, updatedAt: ts });
       });
       await batch.commit();
     }

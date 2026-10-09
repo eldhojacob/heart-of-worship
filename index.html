@@ -18,7 +18,7 @@
   <!-- SheetJS for Excel import -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
 
@@ -60,7 +60,16 @@
       <h2 class="sunday-title">✝ Upcoming Sunday Worship</h2>
       <button id="btn-sunday-clear" class="btn btn--sm btn--danger" hidden>Clear all</button>
     </div>
-    <div id="sunday-list" class="song-list song-list--embedded"></div>
+
+    <div class="sunday-group" id="sunday-group-malayalam">
+      <h3 class="sunday-subtitle">🕊 Malayalam</h3>
+      <div id="sunday-list-malayalam" class="song-list song-list--embedded"></div>
+    </div>
+
+    <div class="sunday-group" id="sunday-group-english">
+      <h3 class="sunday-subtitle">🕊 English</h3>
+      <div id="sunday-list-english" class="song-list song-list--embedded"></div>
+    </div>
   </section>
 
   <!-- Song list -->
@@ -212,9 +221,15 @@
 
       <p class="field__hint">
         Import multiple songs at once. The first row must be headers. Columns:
-        <code>title, key, timeSignature, fTranspose, language, artist, details, notes, youtube</code>.
+        <code>title, key, timeSignature, fTranspose, artist, details, notes, youtube, chart</code>.
         Only <strong>title, key, timeSignature</strong> are required.
       </p>
+
+      <fieldset class="perm-group" style="gap:1.5rem;">
+        <legend class="field__label">Import these songs as:</legend>
+        <label class="perm-check"><input type="radio" name="import-lang" value="Malayalam" /> Malayalam</label>
+        <label class="perm-check"><input type="radio" name="import-lang" value="English" checked /> English</label>
+      </fieldset>
 
       <div class="import-options">
         <div class="field">
@@ -259,7 +274,9 @@
 
           <label class="field field--required">
             <span class="field__label">Key *</span>
-            <input id="f-key" class="field__input" type="text" placeholder="e.g. G, Bm, F#" maxlength="3" required />
+            <select id="f-key" class="field__input" required>
+              <option value="" disabled selected>Select key…</option>
+            </select>
             <span class="field__error" id="err-key" role="alert"></span>
           </label>
 
@@ -271,13 +288,19 @@
 
           <label class="field">
             <span class="field__label">Female Key <span class="field__hint">(if different)</span></span>
-            <input id="f-ftranspose" class="field__input" type="text" maxlength="3" />
+            <select id="f-ftranspose" class="field__input">
+              <option value="">— none —</option>
+            </select>
             <span class="field__error" id="err-ftranspose" role="alert"></span>
           </label>
 
           <label class="field">
             <span class="field__label">Language</span>
-            <input id="f-language" class="field__input" type="text" maxlength="100" />
+            <select id="f-language" class="field__input">
+              <option value="">— select —</option>
+              <option value="Malayalam">Malayalam</option>
+              <option value="English">English</option>
+            </select>
           </label>
 
           <label class="field">
@@ -318,6 +341,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=15"></script>
+  <script type="module" src="app.js?v=16"></script>
 </body>
 </html>
