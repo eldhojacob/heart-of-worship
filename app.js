@@ -57,17 +57,17 @@ function isChordLine(line) {
 }
 
 function renderChordChart(text) {
-  const lines = String(text).split('\n');
+  // Normalise all newline styles, then render each line as its own block so
+  // line breaks are guaranteed regardless of surrounding flex/CSS.
+  const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const html = lines.map(line => {
+    if (line.trim() === '') return `<div class="chart-line chart-line--blank">&nbsp;</div>`;
     const trimmed = line.trim();
-    if (/^\[.*\]$/.test(trimmed)) {
-      return `<span class="chart-label">${escapeHtml(line)}</span>`;
-    }
-    if (isChordLine(line)) {
-      return `<span class="chart-chords">${escapeHtml(line)}</span>`;
-    }
-    return escapeHtml(line);
-  }).join('\n');
+    let cls = 'chart-line';
+    if (/^\[.*\]$/.test(trimmed)) cls += ' chart-label';
+    else if (isChordLine(line)) cls += ' chart-chords';
+    return `<div class="${cls}">${escapeHtml(line)}</div>`;
+  }).join('');
   return `<div class="chord-chart">${html}</div>`;
 }
 

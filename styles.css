@@ -345,8 +345,7 @@ body.has-bg::after {
 .chord-chart {
   font-family: 'Courier New', Consolas, monospace;
   font-size: .9rem;
-  line-height: 1.45;
-  white-space: pre;
+  line-height: 1.4;
   overflow-x: auto;
   background: #fff;
   border: 1px solid var(--color-border);
@@ -354,9 +353,16 @@ body.has-bg::after {
   padding: .75rem 1rem;
   margin-top: .5rem;
   color: var(--color-ink);
+  width: 100%;
 }
+/* Each line is its own block; preserve internal spacing for chord alignment */
+.chord-chart .chart-line {
+  white-space: pre;
+  min-height: 1.2em;
+}
+.chord-chart .chart-line--blank { min-height: .7em; }
 /* Section labels like [Verse 1] stand out */
-.chord-chart .chart-label { color: var(--color-green); font-weight: 700; }
+.chord-chart .chart-label  { color: var(--color-green); font-weight: 700; }
 /* Chord lines in forest green bold */
 .chord-chart .chart-chords { color: var(--color-green); font-weight: 700; }
 .field__error { font-size: .8rem; color: var(--color-error); min-height: 1em; }
