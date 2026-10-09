@@ -371,6 +371,20 @@ body.has-bg::after {
   color: var(--color-ink);
   width: 100%;
 }
+/* Chord / Lyrics view buttons */
+.chart-view-buttons {
+  display: flex;
+  gap: .5rem;
+  margin-top: .25rem;
+  flex-wrap: wrap;
+}
+.chart-view-buttons .btn { flex: 1 1 0; min-width: 130px; }
+.chart-view-buttons .btn.is-active {
+  background: var(--color-green);
+  color: #fff;
+  border-color: var(--color-green);
+}
+
 /* Chords & Lyrics collapsible toggle */
 .chart-toggle {
   display: flex;

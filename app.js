@@ -122,6 +122,19 @@ function transposeChordLine(line, semitones, useFlats) {
   });
 }
 
+// Lyrics-only view: drop chord lines, keep section labels + lyrics
+function renderLyricsOnly(text) {
+  const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const html = lines.map(line => {
+    if (line.trim() === '') return `<div class="chart-line chart-line--blank">&nbsp;</div>`;
+    const trimmed = line.trim();
+    if (/^\[.*\]$/.test(trimmed)) return `<div class="chart-line chart-label">${escapeHtml(line)}</div>`;
+    if (isChordLine(line)) return ''; // skip pure chord lines
+    return `<div class="chart-line">${escapeHtml(line.trimEnd())}</div>`;
+  }).filter(x => x !== '').join('');
+  return html;
+}
+
 function renderChordChart(text, semitones = 0, useFlats = false) {
   // Normalise all newline styles, then render each line as its own block so
   // line breaks are guaranteed regardless of surrounding flex/CSS.
@@ -227,12 +240,12 @@ function fullSongCardHtml(song, opts = {}) {
     song.notes   && isNonEmpty(song.notes)   ? `<div class="detail-row"><span class="detail-row__label">Notes</span><span>${song.notes}</span></div>` : '',
     song.youtube && isNonEmpty(song.youtube) ? `<div class="detail-row"><span class="detail-row__label">Video</span><a href="${song.youtube}" target="_blank" rel="noopener">${song.youtube}</a></div>` : '',
     isNonEmpty(song.chart) ? `<div class="detail-row" style="flex-direction:column; align-items:stretch;">
-      <button class="chart-toggle" data-chart-toggle="${song.id}" aria-expanded="false">
-        <span>🎵 Chords &amp; Lyrics</span>
-        <span class="chart-toggle__chev">▾</span>
-      </button>
+      <div class="chart-view-buttons">
+        <button class="btn btn--sm btn--outline" data-view="chords" data-song="${song.id}">🎵 With Chords</button>
+        <button class="btn btn--sm btn--outline" data-view="lyrics" data-song="${song.id}">📝 Lyrics only</button>
+      </div>
       <div class="chart-collapse" data-chart-collapse="${song.id}" hidden>
-        <div class="chart-toolbar">
+        <div class="chart-toolbar" data-toolbar-for="${song.id}">
           <label class="transpose-ctl">Transpose to:
             <select class="transpose-select" data-song="${song.id}" data-origkey="${(song.key||'C').replace(/m$/,'')}">
               ${SHARP_SCALE.map(k => `<option value="${k}"${k===(song.key||'C').replace(/m$/,'')?' selected':''}>${k}</option>`).join('')}
@@ -289,19 +302,39 @@ function wireCardEvents(container) {
     qs('[data-action="delete"]',        card)?.addEventListener('click', e => { e.stopPropagation(); confirmDelete(card.dataset.id); });
     qs('[data-action="sunday"]',        card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
     qs('[data-action="sunday-remove"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
-    // Chords & Lyrics collapse toggle
-    const chartToggle = qs('[data-chart-toggle]', card);
-    if (chartToggle) {
-      chartToggle.addEventListener('click', e => {
+    // Chord/Lyrics view buttons
+    const viewBtns = qsa('[data-view]', card);
+    viewBtns.forEach(btn => {
+      btn.addEventListener('click', e => {
         e.stopPropagation();
-        const id = chartToggle.getAttribute('data-chart-toggle');
-        const panel = qs(`[data-chart-collapse="${id}"]`, card);
-        const open = panel.hidden;
-        panel.hidden = !open;
-        chartToggle.setAttribute('aria-expanded', String(open));
-        chartToggle.classList.toggle('is-open', open);
+        const id    = btn.dataset.song;
+        const view  = btn.dataset.view; // 'chords' | 'lyrics'
+        const song  = allSongs.find(s => s.id === id);
+        if (!song) return;
+        const panel   = qs(`[data-chart-collapse="${id}"]`, card);
+        const chartEl = qs(`[data-chart-for="${id}"]`, card);
+        const toolbar = qs(`[data-toolbar-for="${id}"]`, card);
+
+        // If this view is already active and open, clicking again collapses it
+        if (!panel.hidden && btn.classList.contains('is-active')) {
+          panel.hidden = true;
+          viewBtns.forEach(b => b.classList.remove('is-active'));
+          return;
+        }
+        // Activate the chosen view
+        viewBtns.forEach(b => b.classList.toggle('is-active', b === btn));
+        panel.hidden = false;
+        if (view === 'lyrics') {
+          toolbar.style.display = 'none';            // no transpose for lyrics
+          chartEl.innerHTML = renderLyricsOnly(song.chart);
+        } else {
+          toolbar.style.display = '';                // show transpose
+          const sel = qs('.transpose-select', card);
+          if (sel) sel.value = (song.key || 'C').replace(/m$/, '');
+          chartEl.innerHTML = renderChordChart(song.chart);
+        }
       });
-    }
+    });
     // Transpose dropdown
     const sel = qs('.transpose-select', card);
     if (sel) {
