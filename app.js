@@ -217,68 +217,78 @@ function renderChips() {
   }));
 }
 
-// ── Render: song list ──────────────────────────────────────────────────────
-function renderSongList(songs) {
-  const list = qs('#song-list');
-  if (!songs.length) {
-    list.innerHTML = `<p class="empty-state">${allSongs.length ? 'No songs match your search.' : 'No songs yet. Add the first one!'}</p>`;
-    return;
-  }
-  list.innerHTML = songs.map(song => {
-    const detailRows = [
-      song.artist  && isNonEmpty(song.artist)  ? `<div class="detail-row"><span class="detail-row__label">Artist</span><span>${song.artist}</span></div>` : '',
-      song.details && isNonEmpty(song.details) ? `<div class="detail-row"><span class="detail-row__label">Details</span><span>${song.details}</span></div>` : '',
-      song.notes   && isNonEmpty(song.notes)   ? `<div class="detail-row"><span class="detail-row__label">Notes</span><span>${song.notes}</span></div>` : '',
-      song.youtube && isNonEmpty(song.youtube) ? `<div class="detail-row"><span class="detail-row__label">Video</span><a href="${song.youtube}" target="_blank" rel="noopener">${song.youtube}</a></div>` : '',
-      isNonEmpty(song.chart) ? `<div class="detail-row" style="flex-direction:column; align-items:stretch;">
-        <button class="chart-toggle" data-chart-toggle="${song.id}" aria-expanded="false">
-          <span>🎵 Chords &amp; Lyrics</span>
-          <span class="chart-toggle__chev">▾</span>
-        </button>
-        <div class="chart-collapse" data-chart-collapse="${song.id}" hidden>
-          <div class="chart-toolbar">
-            <label class="transpose-ctl">Transpose to:
-              <select class="transpose-select" data-song="${song.id}" data-origkey="${(song.key||'C').replace(/m$/,'')}">
-                ${SHARP_SCALE.map(k => `<option value="${k}"${k===(song.key||'C').replace(/m$/,'')?' selected':''}>${k}</option>`).join('')}
-              </select>
-            </label>
-          </div>
-          <div class="chord-chart" data-chart-for="${song.id}">${renderChordChart(song.chart)}</div>
+// ── Shared full song card (used by main list AND Sunday dialog) ─────────────
+// opts.sundayAction: 'toggle' (★ Add/✓ On Sunday) | 'remove' (✕) | 'none'
+function fullSongCardHtml(song, opts = {}) {
+  const sundayMode = opts.sundayAction || 'toggle';
+  const detailRows = [
+    song.artist  && isNonEmpty(song.artist)  ? `<div class="detail-row"><span class="detail-row__label">Artist</span><span>${song.artist}</span></div>` : '',
+    song.details && isNonEmpty(song.details) ? `<div class="detail-row"><span class="detail-row__label">Details</span><span>${song.details}</span></div>` : '',
+    song.notes   && isNonEmpty(song.notes)   ? `<div class="detail-row"><span class="detail-row__label">Notes</span><span>${song.notes}</span></div>` : '',
+    song.youtube && isNonEmpty(song.youtube) ? `<div class="detail-row"><span class="detail-row__label">Video</span><a href="${song.youtube}" target="_blank" rel="noopener">${song.youtube}</a></div>` : '',
+    isNonEmpty(song.chart) ? `<div class="detail-row" style="flex-direction:column; align-items:stretch;">
+      <button class="chart-toggle" data-chart-toggle="${song.id}" aria-expanded="false">
+        <span>🎵 Chords &amp; Lyrics</span>
+        <span class="chart-toggle__chev">▾</span>
+      </button>
+      <div class="chart-collapse" data-chart-collapse="${song.id}" hidden>
+        <div class="chart-toolbar">
+          <label class="transpose-ctl">Transpose to:
+            <select class="transpose-select" data-song="${song.id}" data-origkey="${(song.key||'C').replace(/m$/,'')}">
+              ${SHARP_SCALE.map(k => `<option value="${k}"${k===(song.key||'C').replace(/m$/,'')?' selected':''}>${k}</option>`).join('')}
+            </select>
+          </label>
         </div>
-      </div>` : '',
-    ].filter(Boolean).join('');
-
-    return `<article class="song-card" data-id="${song.id}">
-      <div class="song-card__header">
-        <span class="song-card__title">${song.title}</span>
-        <div class="song-card__badges">
-          ${renderKeyBadge(song.key)}
-          ${isNonEmpty(song.fTranspose) ? renderKeyBadge(song.fTranspose, 'female') : ''}
-          ${renderTimeSig(song.timeSignature)}
-          ${isNonEmpty(song.language) ? `<span class="lang-tag">${song.language}</span>` : ''}
-          ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
-        </div>
-        <div class="song-card__sunday">
-          <button class="btn btn--sm btn--sunday${sundayIds.includes(song.id) ? ' is-on' : ''}" data-action="sunday" aria-label="Toggle Sunday for ${song.title}">
-            ${sundayIds.includes(song.id) ? '✓ On Sunday' : '★ Add to Sunday'}
-          </button>
-        </div>
-        <div class="song-card__actions">
-          ${canEdit()   ? `<button class="btn btn--sm btn--outline" data-action="edit"   aria-label="Edit ${song.title}">Edit</button>` : ''}
-          ${canDelete() ? `<button class="btn btn--sm btn--danger"  data-action="delete" aria-label="Delete ${song.title}">Delete</button>` : ''}
-        </div>
+        <div class="chord-chart" data-chart-for="${song.id}">${renderChordChart(song.chart)}</div>
       </div>
-      ${detailRows ? `<div class="song-card__detail">${detailRows}</div>` : ''}
-    </article>`;
-  }).join('');
+    </div>` : '',
+  ].filter(Boolean).join('');
 
-  qsa('.song-card', list).forEach(card => {
+  let sundayBtn = '';
+  if (sundayMode === 'toggle') {
+    sundayBtn = `<div class="song-card__sunday">
+      <button class="btn btn--sm btn--sunday${sundayIds.includes(song.id) ? ' is-on' : ''}" data-action="sunday" aria-label="Toggle Sunday for ${song.title}">
+        ${sundayIds.includes(song.id) ? '✓ On Sunday' : '★ Add to Sunday'}
+      </button>
+    </div>`;
+  } else if (sundayMode === 'remove') {
+    sundayBtn = `<div class="song-card__sunday">
+      <button class="btn btn--sm btn--icon-x" data-action="sunday-remove" aria-label="Remove ${song.title} from Sunday" title="Remove from Sunday">✕</button>
+    </div>`;
+  }
+
+  const editDelete = (!opts.hideEdit) ? `<div class="song-card__actions">
+    ${canEdit()   ? `<button class="btn btn--sm btn--outline" data-action="edit"   aria-label="Edit ${song.title}">Edit</button>` : ''}
+    ${canDelete() ? `<button class="btn btn--sm btn--danger"  data-action="delete" aria-label="Delete ${song.title}">Delete</button>` : ''}
+  </div>` : '';
+
+  return `<article class="song-card" data-id="${song.id}">
+    <div class="song-card__header">
+      <span class="song-card__title">${song.title}</span>
+      <div class="song-card__badges">
+        ${renderKeyBadge(song.key)}
+        ${isNonEmpty(song.fTranspose) ? renderKeyBadge(song.fTranspose, 'female') : ''}
+        ${renderTimeSig(song.timeSignature)}
+        ${isNonEmpty(song.language) ? `<span class="lang-tag">${song.language}</span>` : ''}
+        ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
+      </div>
+      ${sundayBtn}
+      ${editDelete}
+    </div>
+    ${detailRows ? `<div class="song-card__detail">${detailRows}</div>` : ''}
+  </article>`;
+}
+
+// Wire up click/expand/transpose events for all cards within a container
+function wireCardEvents(container) {
+  qsa('.song-card', container).forEach(card => {
     qs('.song-card__header', card).addEventListener('click', () => {
       qs('.song-card__detail', card)?.classList.toggle('is-open');
     });
-    qs('[data-action="edit"]',   card)?.addEventListener('click', e => { e.stopPropagation(); openEditForm(card.dataset.id); });
-    qs('[data-action="delete"]', card)?.addEventListener('click', e => { e.stopPropagation(); confirmDelete(card.dataset.id); });
-    qs('[data-action="sunday"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
+    qs('[data-action="edit"]',          card)?.addEventListener('click', e => { e.stopPropagation(); openEditForm(card.dataset.id); });
+    qs('[data-action="delete"]',        card)?.addEventListener('click', e => { e.stopPropagation(); confirmDelete(card.dataset.id); });
+    qs('[data-action="sunday"]',        card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
+    qs('[data-action="sunday-remove"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
     // Chords & Lyrics collapse toggle
     const chartToggle = qs('[data-chart-toggle]', card);
     if (chartToggle) {
@@ -311,6 +321,17 @@ function renderSongList(songs) {
   });
 }
 
+// ── Render: song list ──────────────────────────────────────────────────────
+function renderSongList(songs) {
+  const list = qs('#song-list');
+  if (!songs.length) {
+    list.innerHTML = `<p class="empty-state">${allSongs.length ? 'No songs match your search.' : 'No songs yet. Add the first one!'}</p>`;
+    return;
+  }
+  list.innerHTML = songs.map(song => fullSongCardHtml(song, { sundayAction: 'toggle' })).join('');
+  wireCardEvents(list);
+}
+
 // ── Upcoming Sunday Worship ──────────────────────────────────────────────────
 // Stored in Firestore at config/sunday → { songIds: [...] }. Live-synced.
 db.collection('config').doc('sunday').onSnapshot(
@@ -337,20 +358,8 @@ async function ensureAnonAuthForSunday() {
 }
 
 function sundayCardHtml(song) {
-  return `<article class="song-card" data-id="${song.id}">
-    <div class="song-card__header">
-      <span class="song-card__title">${song.title}</span>
-      <div class="song-card__badges">
-        ${renderKeyBadge(song.key)}
-        ${isNonEmpty(song.fTranspose) ? renderKeyBadge(song.fTranspose, 'female') : ''}
-        ${renderTimeSig(song.timeSignature)}
-        ${isNonEmpty(song.youtube)  ? `<a class="yt-link" href="${song.youtube}" target="_blank" rel="noopener" aria-label="Watch on YouTube">&#9654;</a>` : ''}
-      </div>
-      <div class="song-card__sunday">
-        <button class="btn btn--sm btn--icon-x" data-action="sunday-remove" aria-label="Remove ${song.title} from Sunday" title="Remove from Sunday">✕</button>
-      </div>
-    </div>
-  </article>`;
+  // Full card (expandable details + chords/lyrics), with ✕ remove and no edit/delete
+  return fullSongCardHtml(song, { sundayAction: 'remove', hideEdit: true });
 }
 
 function renderSunday() {
@@ -375,11 +384,8 @@ function renderSunday() {
     ? en.map(sundayCardHtml).join('')
     : '<p class="sunday-empty">No English songs added yet.</p>';
 
-  [mlWrap, enWrap].forEach(wrap => {
-    qsa('.song-card', wrap).forEach(card => {
-      qs('[data-action="sunday-remove"]', card)?.addEventListener('click', e => { e.stopPropagation(); toggleSunday(card.dataset.id); });
-    });
-  });
+  wireCardEvents(mlWrap);
+  wireCardEvents(enWrap);
 }
 
 // Open / close the Sunday Worship dialog
