@@ -586,6 +586,35 @@ body.has-bg::after {
 .settings-menu__text strong { font-size: .95rem; color: var(--color-ink); }
 .settings-menu__text small { font-size: .78rem; color: var(--color-ink-light); }
 .settings-menu__chev { font-size: 1.4rem; color: var(--color-ink-light); flex-shrink: 0; }
+
+/* Theme colour swatches */
+.theme-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: .6rem;
+}
+.theme-swatch {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-md);
+  border: 3px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition: transform .1s, border-color .15s;
+}
+.theme-swatch:hover { transform: scale(1.06); }
+.theme-swatch.is-active { border-color: var(--color-ink); }
+.theme-swatch.is-active::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.3rem;
+  text-shadow: 0 1px 2px rgba(0,0,0,.4);
+}
 .settings-section {
   border-top: 1px solid var(--color-paper-dark);
   padding-top: 1rem;

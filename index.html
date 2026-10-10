@@ -22,7 +22,7 @@
   <!-- pdf.js (legacy UMD build so it is available as window.pdfjsLib) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=29" />
+  <link rel="stylesheet" href="styles.css?v=36" />
 </head>
 <body>
 
@@ -148,6 +148,11 @@
           <span class="settings-menu__text"><strong>Change background picture</strong><small>Upload or remove the shared background</small></span>
           <span class="settings-menu__chev">›</span>
         </button>
+        <button type="button" id="menu-theme" class="settings-menu__item" hidden>
+          <span class="settings-menu__icon">🎨</span>
+          <span class="settings-menu__text"><strong>Change theme colour</strong><small>Pick the app's main colour</small></span>
+          <span class="settings-menu__chev">›</span>
+        </button>
         <button type="button" id="menu-users" class="settings-menu__item" hidden>
           <span class="settings-menu__icon">👥</span>
           <span class="settings-menu__text"><strong>Manage users</strong><small>Add or remove users and set roles</small></span>
@@ -175,6 +180,19 @@
         <button type="button" id="btn-bg-upload" class="btn btn--primary">Upload image</button>
         <button type="button" id="btn-bg-remove" class="btn btn--danger">Remove background</button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- Theme colour dialog -->
+  <dialog id="theme-modal" class="modal" aria-modal="true" aria-labelledby="theme-title">
+    <div class="modal__inner">
+      <div class="settings-header">
+        <h2 id="theme-title" class="modal__title">Theme Colour</h2>
+        <button type="button" id="btn-theme-close" class="input-toggle" aria-label="Close">✕</button>
+      </div>
+      <p class="field__hint">Pick the main colour for the app. Applies for everyone.</p>
+      <div id="theme-swatches" class="theme-swatches"></div>
+      <p id="theme-status" class="field__hint" role="status"></p>
     </div>
   </dialog>
 
@@ -388,6 +406,6 @@ A thousand generations...</pre>
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=35"></script>
+  <script type="module" src="app.js?v=36"></script>
 </body>
 </html>

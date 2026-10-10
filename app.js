@@ -637,6 +637,7 @@ async function ensureAnonAuth() {
 // ── Settings MENU → opens individual dialogs ────────────────────────────────
 function refreshSettingsMenu() {
   qs('#menu-background').hidden = !isAdmin();     // background is admin-only
+  qs('#menu-theme').hidden      = !isAdmin();     // theme colour admin-only
   qs('#menu-users').hidden      = !isAdmin();     // user management admin-only
   qs('#menu-password').hidden   = !isLoggedIn();  // anyone logged in
 }
@@ -1529,11 +1530,73 @@ function applyBackground(url) {
   document.body.classList.add('has-bg');
 }
 
-// Live-sync the background for all users
+// ── Theme colour ─────────────────────────────────────────────────────────────
+// Preset palette: [name, main, light, tint]
+const THEME_PALETTE = [
+  ['Forest Green', '#2d5016', '#3d6b20', '#eaf2e3'],
+  ['Deep Teal',    '#0f5257', '#13716e', '#e0f0ef'],
+  ['Royal Blue',   '#1e3a8a', '#2b4fc0', '#e4e9f7'],
+  ['Indigo',       '#3730a3', '#4f46c4', '#e8e6f7'],
+  ['Plum',         '#6b21a8', '#8b2fc9', '#f1e6f8'],
+  ['Maroon',       '#7f1d1d', '#a32626', '#f7e4e4'],
+  ['Rust',         '#9a3412', '#c2410c', '#f8e7df'],
+  ['Charcoal',     '#334155', '#475569', '#e6eaef'],
+  ['Burgundy',     '#881337', '#a81b4a', '#f7e3ea'],
+  ['Ocean',        '#155e75', '#1b7f9e', '#e0eef2'],
+];
+const DEFAULT_THEME = THEME_PALETTE[0];
+
+function applyTheme(main) {
+  const t = THEME_PALETTE.find(p => p[1] === main) || DEFAULT_THEME;
+  document.documentElement.style.setProperty('--color-green',       t[1]);
+  document.documentElement.style.setProperty('--color-green-light', t[2]);
+  document.documentElement.style.setProperty('--color-green-tint',  t[3]);
+}
+
+// Live-sync background + theme for all users
 db.collection('config').doc('appearance').onSnapshot(
-  snap => applyBackground(snap.exists ? (snap.data().backgroundUrl || '') : ''),
-  err  => console.error('appearance listener error:', err)
+  snap => {
+    const d = snap.exists ? snap.data() : {};
+    applyBackground(d.backgroundUrl || '');
+    applyTheme(d.themeColor || DEFAULT_THEME[1]);
+    renderThemeSwatches(d.themeColor || DEFAULT_THEME[1]);
+  },
+  err => console.error('appearance listener error:', err)
 );
+
+// Theme dialog
+qs('#menu-theme').addEventListener('click', () => {
+  qs('#settings-modal').close();
+  qs('#theme-status').textContent = '';
+  qs('#theme-modal').showModal();
+});
+qs('#btn-theme-close').addEventListener('click', () => qs('#theme-modal').close());
+
+function renderThemeSwatches(current) {
+  const wrap = qs('#theme-swatches');
+  if (!wrap) return;
+  wrap.innerHTML = THEME_PALETTE.map(p =>
+    `<button class="theme-swatch${p[1] === current ? ' is-active' : ''}" title="${p[0]}" data-color="${p[1]}" style="background:${p[1]}"></button>`
+  ).join('');
+  qsa('.theme-swatch', wrap).forEach(sw => {
+    sw.addEventListener('click', async () => {
+      if (!isAdmin()) { showToast('Only admins can change the theme.'); return; }
+      const color = sw.dataset.color;
+      applyTheme(color);              // instant local feedback
+      renderThemeSwatches(color);
+      qs('#theme-status').textContent = 'Saving…';
+      try {
+        await ensureAnonAuthForSunday();
+        await db.collection('config').doc('appearance').set({ themeColor: color }, { merge: true });
+        qs('#theme-status').textContent = 'Theme updated for everyone.';
+        showToast('Theme colour updated.');
+      } catch (ex) {
+        console.error(ex);
+        qs('#theme-status').textContent = 'Could not save: ' + (ex.message || ex);
+      }
+    });
+  });
+}
 
 // Trigger the hidden file picker (button lives in the Settings → Appearance section)
 qs('#btn-bg-upload').addEventListener('click', () => qs('#bg-file-input').click());
