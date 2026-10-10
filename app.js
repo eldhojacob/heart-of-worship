@@ -350,7 +350,9 @@ function wireCardEvents(container) {
         if (view === 'lyrics') {
           toolbar.style.display = 'none';            // no transpose for lyrics
           chartEl.classList.add('chord-chart--wrap'); // lyrics can wrap, no scroll needed
-          chartEl.innerHTML = renderLyricsOnly(song.chart);
+          // Prefer the stored plain lyrics (Malayalam + English); fall back to
+          // stripping chords from the chart for older songs without a lyrics field.
+          chartEl.innerHTML = renderLyricsOnly(song.lyrics || song.chart);
         } else {
           toolbar.style.display = '';                // show transpose
           chartEl.classList.remove('chord-chart--wrap');
@@ -939,6 +941,7 @@ qs('#song-form').addEventListener('submit', async e => {
     notes:         qs('#f-notes').value.trim()      || null,
     youtube:       qs('#f-youtube').value.trim()    || null,
     chart:         buildChart(qs('#f-chart').value, qs('#f-lyrics').value) || null,
+    lyrics:        (qs('#f-lyrics').value || '').trim() || null,
   };
 
   const errs = validateDraft(draft);
@@ -1300,6 +1303,8 @@ function buildChart(chordsText, lyricsText) {
 }
 
 // Extract ordered chord tokens from VerseView glued text.
+// Catches chords glued to a following letter AND standalone chords (space/edge
+// bounded), so we don't drop any chord.
 function extractChordMarkers(chordsText) {
   const CHORD = /[A-G](?:#|b)?(?:maj|min|aug|dim|sus|add|m)?(?:\d{1,2})?(?:\/[A-G](?:#|b)?)?/y;
   const src = String(chordsText).replace(/\u00a0/g, ' ');
@@ -1310,11 +1315,18 @@ function extractChordMarkers(chordsText) {
     if (ch >= 'A' && ch <= 'G') {
       CHORD.lastIndex = i;
       const m = CHORD.exec(src);
-      // a chord is one glued to a following letter (VerseView style)
-      if (m && m[0] && /[a-zA-Z]/.test(src[i + m[0].length] || '')) {
-        markers.push(m[0]);
-        i += m[0].length;
-        continue;
+      if (m && m[0]) {
+        const next = src[i + m[0].length] || '';
+        const prev = src[i - 1] || '';
+        // Accept if glued to a following letter (Fnandi) OR standalone chord
+        // (preceded by space/start and followed by space/end).
+        const gluedToWord = /[a-zA-Z]/.test(next);
+        const standalone  = (prev === '' || prev === ' ') && (next === '' || next === ' ');
+        if (gluedToWord || standalone) {
+          markers.push(m[0]);
+          i += m[0].length;
+          continue;
+        }
       }
     }
     i++;
@@ -1345,8 +1357,9 @@ function splitChordGroups(chordsText) {
   return groups;
 }
 
-// Build the final chart: keep Malayalam lines; above each English line place the
-// chords from the matching (same-order) chord group of the Chords field.
+// Build the "With Chords" chart: ENGLISH lines only, each with its matching
+// chord group placed above it. Malayalam lines are dropped (they live in the
+// separate Lyrics-only field). Verse numbers become [Verse N] labels.
 function mergeChordsOverMixedLyrics(chordsText, lyricsText) {
   const groups = splitChordGroups(chordsText);
   const lines = String(lyricsText).replace(/\r\n?/g, '\n').split('\n').map(l => l.replace(/\s+$/, ''));
@@ -1355,49 +1368,45 @@ function mergeChordsOverMixedLyrics(chordsText, lyricsText) {
   const isLatinLyric = l => l.trim() !== '' && !/^\(?\d{1,2}\)?$/.test(l.trim()) && !isMalayalam(l);
 
   const out = [];
-  let gIdx = 0; // which chord group (English line index)
+  let gIdx = 0;        // which chord group (English line index)
+  let pendingLabel = '';
 
   lines.forEach(raw => {
     const line = raw;
     const trimmed = line.trim();
-    if (trimmed === '') { out.push(''); return; }
+    if (trimmed === '') return;                       // skip blanks here
 
-    // Verse number line → label
+    // Verse number line → remember a label to emit before the next English line
     if (/^\(?(\d{1,2})\)?$/.test(trimmed)) {
-      out.push('');
-      out.push(`[Verse ${trimmed.replace(/[()]/g, '')}]`);
+      pendingLabel = `[Verse ${trimmed.replace(/[()]/g, '')}]`;
       return;
     }
 
-    // Malayalam line → keep as-is
-    if (isMalayalam(line)) { out.push(line); return; }
+    // Malayalam line → skip (not shown in the chords view)
+    if (isMalayalam(line)) return;
 
-    // English line → place this line's matching chord group above it
+    // English line → emit optional label, then chords над the English line
     if (isLatinLyric(line)) {
       const lyric = line.replace(/^\(?\d{1,2}\)?\s+/, '');
+      if (pendingLabel) { if (out.length) out.push(''); out.push(pendingLabel); pendingLabel = ''; }
+
       const chords = groups[gIdx] || [];
       gIdx++;
 
-      // word start columns in the clean English lyric
       const wordStarts = [];
       const re = /\S+/g; let wm;
       while ((wm = re.exec(lyric)) !== null) wordStarts.push(wm.index);
 
       let chordLine = '';
       for (let c = 0; c < chords.length; c++) {
-        // place chord c above word c (or append with a gap if more chords than words)
-        const col = (c < wordStarts.length) ? wordStarts[c]
-                  : (chordLine.length + 1);
+        const col = (c < wordStarts.length) ? wordStarts[c] : (chordLine.length + 1);
         const need = chordLine.length === 0 ? col : Math.max(col, chordLine.length + 1);
         while (chordLine.length < need) chordLine += ' ';
         chordLine += chords[c];
       }
       if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
       out.push(lyric);
-      return;
     }
-
-    out.push(line);
   });
 
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
