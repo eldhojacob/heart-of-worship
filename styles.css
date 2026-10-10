@@ -639,6 +639,14 @@ body.has-bg::after {
 
 /* ── Import songs ────────────────────────────────────────────────────────── */
 .import-options { display: flex; flex-direction: column; gap: 1rem; }
+.vv-link {
+  display: inline-block;
+  margin-left: .35rem;
+  color: var(--color-green);
+  font-weight: 600;
+  text-decoration: none;
+}
+.vv-link:hover { text-decoration: underline; }
 .import-example {
   font-family: 'Courier New', monospace;
   font-size: .78rem;

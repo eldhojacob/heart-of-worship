@@ -992,6 +992,8 @@ function openImportDialog() {
   qs('#import-summary').textContent = '';
   qs('#import-error').hidden = true;
   qs('#import-filename').textContent = '';
+  const pasteBox = qs('#import-paste');
+  if (pasteBox) pasteBox.value = '';
   qs('#btn-import-confirm').disabled = true;
   importParsed = [];
   qs('#import-modal').showModal();
@@ -1131,6 +1133,66 @@ function buildFromDocument(text) {
   return [{ data: rec, valid: !error, error }];
 }
 
+// Smart parser for pasted song content (VerseView-style or generic chord sheet).
+// Detects title + optional labelled fields, keeps chords/lyrics as the chart.
+function buildFromPastedSong(text) {
+  const raw = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Strip common VerseView noise lines (nav, share, ads, comments prompts)
+  const noise = /^(home|search|share|facebook|twitter|whatsapp|print|download|comments?|related posts|tags?:|category:|posted on|leave a reply|verseview).*$/i;
+  let lines = raw.split('\n').map(l => l.replace(/\u00a0/g, ' ').trimEnd());
+
+  // Drop leading/trailing blank + noise lines
+  lines = lines.filter(l => !noise.test(l.trim()));
+
+  const rec = { title:'', key:'', timeSignature:'', fTranspose:null, language:null, artist:null, details:null, notes:null, youtube:null, chart:null };
+
+  // Try labelled fields first (Title:, Key:, etc.)
+  const labelMap = {
+    title:'title', song:'title', name:'title',
+    artist:'artist', by:'artist', author:'artist', composer:'artist', singer:'artist',
+    key:'key', scale:'key',
+    time:'timeSignature', timesignature:'timeSignature', timesig:'timeSignature', meter:'timeSignature', tempo:'notes',
+    language:'language', lang:'language',
+    youtube:'youtube', video:'youtube', link:'youtube',
+  };
+  let bodyStart = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() === '') { if (rec.title) { bodyStart = i + 1; break; } else continue; }
+    const m = lines[i].match(/^\s*([A-Za-z ]{2,20}?)\s*[:\-]\s*(.+)$/);
+    if (m && labelMap[m[1].trim().toLowerCase().replace(/\s+/g,'')]) {
+      rec[labelMap[m[1].trim().toLowerCase().replace(/\s+/g,'')]] = m[2].trim();
+      bodyStart = i + 1;
+    } else if (!rec.title) {
+      // first meaningful non-label line = title
+      rec.title = lines[i].trim();
+      bodyStart = i + 1;
+    } else {
+      break;
+    }
+  }
+
+  // Try to detect a key from the first chord line if not labelled
+  const body = lines.slice(bodyStart).join('\n').trim();
+  if (body) rec.chart = body;
+  if (!rec.key) {
+    const chordLine = lines.slice(bodyStart).find(l => isChordLine(l));
+    if (chordLine) {
+      const first = chordLine.trim().split(/\s+/)[0];
+      const km = first.match(/^([A-G][#b]?m?)/);
+      if (km) rec.key = km[1];
+    }
+  }
+  // Default a time signature if none found (common worship default)
+  if (!rec.timeSignature) rec.timeSignature = '4/4';
+
+  // Validate
+  let error = '';
+  if (!isNonEmpty(rec.title)) error = 'could not detect a title (add a "Title:" line)';
+  else if (!isNonEmpty(rec.key)) error = 'could not detect a key (add a "Key:" line)';
+  else if (!KEY_REGEX.test(rec.key)) error = 'detected key looks invalid: ' + rec.key;
+  return [{ data: rec, valid: !error, error }];
+}
+
 // Extract text from a .docx file (mammoth) or .pdf (pdf.js)
 async function extractDocxText(file) {
   const buf = await file.arrayBuffer();
@@ -1158,6 +1220,22 @@ async function extractPdfText(file) {
   }
   return out;
 }
+
+// Paste from VerseView → preview
+qs('#btn-import-parse-paste').addEventListener('click', () => {
+  const text = qs('#import-paste').value;
+  if (!text.trim()) { showToast('Paste a song first.'); return; }
+  qs('#import-error').hidden = true;
+  try {
+    importParsed = buildFromPastedSong(text);
+    renderImportPreview();
+  } catch (ex) {
+    console.error(ex);
+    qs('#import-error').textContent = 'Could not parse the pasted song.';
+    qs('#import-error').hidden = false;
+    qs('#import-preview').hidden = false;
+  }
+});
 
 // File → preview (routes by extension)
 qs('#btn-import-file').addEventListener('click', () => qs('#import-file-input').click());

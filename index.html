@@ -22,7 +22,7 @@
   <!-- pdf.js (legacy UMD build so it is available as window.pdfjsLib) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=28" />
+  <link rel="stylesheet" href="styles.css?v=29" />
 </head>
 <body>
 
@@ -275,10 +275,21 @@ A thousand generations...</pre>
 
       <div class="import-options">
         <div class="field">
-          <span class="field__label">Choose a file</span>
+          <span class="field__label">Option 1 — Choose a file (.csv, .xlsx, .txt, .docx, .pdf)</span>
           <button type="button" id="btn-import-file" class="btn btn--outline">Choose file…</button>
           <input id="import-file-input" type="file" accept=".csv,.xlsx,.xls,.txt,.docx,.pdf,text/csv,text/plain,application/pdf" hidden />
           <span id="import-filename" class="field__hint"></span>
+        </div>
+
+        <div class="field">
+          <span class="field__label">Option 2 — Paste a song from VerseView (or any chord site)</span>
+          <p class="field__hint">
+            Open a song on VerseView, select &amp; copy the whole song (title + chords + lyrics), then paste below.
+            <a href="https://verseview.info/" target="_blank" rel="noopener" class="vv-link">🔗 Open VerseView</a>
+          </p>
+          <textarea id="import-paste" class="field__input field__chart" rows="8"
+            placeholder="Paste the copied song here…"></textarea>
+          <button type="button" id="btn-import-parse-paste" class="btn btn--outline" style="margin-top:.5rem;">Preview pasted song</button>
         </div>
       </div>
 
@@ -377,6 +388,6 @@ A thousand generations...</pre>
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=28"></script>
+  <script type="module" src="app.js?v=29"></script>
 </body>
 </html>
