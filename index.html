@@ -22,7 +22,7 @@
   <!-- pdf.js (legacy UMD build so it is available as window.pdfjsLib) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=37" />
+  <link rel="stylesheet" href="styles.css?v=38" />
 </head>
 <body>
 
@@ -390,9 +390,15 @@ A thousand generations...</pre>
           </label>
 
           <label class="field field--full">
-            <span class="field__label">Chords &amp; Lyrics <span class="field__hint">(chords above lyrics; use [Verse], [Chorus] labels)</span></span>
-            <textarea id="f-chart" class="field__input field__chart" maxlength="10000" rows="10"
-              placeholder="[Verse 1]&#10;  C                        F                 C&#10;A thousand generations falling down in worship&#10;   Am               G              F&#10;To sing the song of ages to the Lamb"></textarea>
+            <span class="field__label">Chords &amp; Lyrics <span class="field__hint">(paste the VerseView "with chords" text here)</span></span>
+            <textarea id="f-chart" class="field__input field__chart" maxlength="10000" rows="8"
+              placeholder="Paste the chords+lyrics (e.g. from VerseView) here"></textarea>
+          </label>
+
+          <label class="field field--full">
+            <span class="field__label">Lyrics (plain) <span class="field__hint">(optional — paste clean lyrics with correct line breaks; used to format the chords)</span></span>
+            <textarea id="f-lyrics" class="field__input field__chart" maxlength="10000" rows="8"
+              placeholder="1 Loke njanen ottam thikachu&#10;Swor ga ge he viruthinai&#10;Parannidum njan maru rupamai"></textarea>
           </label>
         </div>
 
@@ -406,6 +412,6 @@ A thousand generations...</pre>
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=37"></script>
+  <script type="module" src="app.js?v=38"></script>
 </body>
 </html>

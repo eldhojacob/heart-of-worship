@@ -385,27 +385,30 @@ body.has-bg::after {
   tab-size: 4;
 }
 
-/* Chord-chart display (chords above lyrics) */
+/* Scroll container — this is what scrolls sideways on mobile */
+.chart-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin-top: .5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+/* Chord-chart content sits at its natural width inside the scroller */
 .chord-chart {
-  /* Fixed px size (not rem) so it never shrinks with the mobile root font —
-     keeps monospace columns aligned on every device. */
   font-family: 'Courier New', Consolas, monospace;
   font-size: 14px;
   line-height: 1.4;
-  display: block;
-  overflow-x: auto;            /* allow sideways scroll */
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y;   /* enable horizontal finger-drag on mobile */
-  overscroll-behavior-x: contain;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  display: inline-block;        /* shrink-to-content so it can exceed the viewport */
+  min-width: 100%;
+  width: max-content;
   padding: .75rem 1rem;
-  margin-top: .5rem;
   color: var(--color-ink);
-  width: 100%;
-  max-width: 100%;
+  box-sizing: border-box;
 }
 /* Always-visible horizontal scrollbar so users know they can slide the chart */
 .chord-chart::-webkit-scrollbar { height: 10px; }
@@ -414,11 +417,11 @@ body.has-bg::after {
 .chord-chart { scrollbar-color: var(--color-green) var(--color-paper-dark); scrollbar-width: thin; }
 
 /* Lyrics-only mode: wrap text, no horizontal scroll needed */
-.chord-chart--wrap { overflow-x: hidden; }
+.chord-chart--wrap { width: 100%; display: block; }
+.chart-scroll:has(.chord-chart--wrap) { overflow-x: hidden; }
 .chord-chart--wrap .chart-line {
   white-space: pre-wrap;
-  width: auto;
-  min-width: 0;
+  word-break: break-word;
 }
 /* Chord / Lyrics view buttons */
 .chart-view-buttons {
@@ -491,8 +494,6 @@ body.has-bg::after {
 .chord-chart .chart-line {
   white-space: pre;          /* never wrap — keeps chord columns aligned */
   min-height: 1.2em;
-  width: max-content;        /* each line takes its full natural width */
-  min-width: 100%;
 }
 .chord-chart .chart-line--blank { min-height: .7em; }
 /* Section labels like [Verse 1] stand out */

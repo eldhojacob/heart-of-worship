@@ -275,7 +275,7 @@ function fullSongCardHtml(song, opts = {}) {
             </select>
           </label>
         </div>
-        <div class="chord-chart" data-chart-for="${song.id}">${renderChordChart(song.chart)}</div>
+        <div class="chart-scroll"><div class="chord-chart" data-chart-for="${song.id}">${renderChordChart(song.chart)}</div></div>
       </div>
     </div>` : '',
   ].filter(Boolean).join('');
@@ -902,6 +902,8 @@ function openEditForm(id) {
     if (el.tagName === 'SELECT') ensureSelectHasValue(el, val);
     el.value = val;
   });
+  // The plain-lyrics helper field is input-only; start it empty on edit
+  const lyr = qs('#f-lyrics'); if (lyr) lyr.value = '';
   qsa('.field__error').forEach(el => el.textContent = '');
   qsa('.field__input').forEach(el => el.classList.remove('is-invalid'));
   qs('#song-form-error').hidden = true;
@@ -936,7 +938,7 @@ qs('#song-form').addEventListener('submit', async e => {
     details:       qs('#f-details').value.trim()    || null,
     notes:         qs('#f-notes').value.trim()      || null,
     youtube:       qs('#f-youtube').value.trim()    || null,
-    chart:         normaliseChart(qs('#f-chart').value) || null,
+    chart:         buildChart(qs('#f-chart').value, qs('#f-lyrics').value) || null,
   };
 
   const errs = validateDraft(draft);
@@ -1276,6 +1278,75 @@ function convertInlineChords(text) {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+// Decide how to build the stored chart:
+//  - if a plain-lyrics field is provided, merge chords onto those clean lyrics
+//  - otherwise just normalise the chords field on its own
+function buildChart(chordsText, lyricsText) {
+  const hasChords = chordsText && chordsText.trim();
+  const hasLyrics = lyricsText && lyricsText.trim();
+  if (hasChords && hasLyrics) return mergeChordsWithLyrics(chordsText, lyricsText);
+  if (hasChords) return normaliseChart(chordsText);
+  if (hasLyrics) return lyricsText.trim();   // lyrics only, no chords
+  return null;
+}
+
+// Merge a VerseView chords field with a clean plain-lyrics field.
+// The plain lyrics give the correct words/line-breaks; we overlay the chords
+// (extracted in order from the chords field) at the matching syllables.
+function mergeChordsWithLyrics(chordsText, lyricsText) {
+  const CHORD = /[A-G](?:#|b)?(?:maj|min|aug|dim|sus|add|m)?(?:\d{1,2})?(?:\/[A-G](?:#|b)?)?/y;
+  const src = String(chordsText).replace(/\u00a0/g, ' ');
+  const markers = []; // { chord, anchor }
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch >= 'A' && ch <= 'G') {
+      CHORD.lastIndex = i;
+      const m = CHORD.exec(src);
+      if (m && m[0] && /[a-zA-Z]/.test(src[i + m[0].length] || '')) {
+        const rest = src.slice(i + m[0].length);
+        const anchor = (rest.match(/^[A-Za-z']{1,8}/) || [''])[0].toLowerCase();
+        markers.push({ chord: m[0], anchor });
+        i += m[0].length;
+        continue;
+      }
+    }
+    i++;
+  }
+
+  const lyricLines = String(lyricsText).replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let mIdx = 0;
+
+  lyricLines.forEach(rawLine => {
+    const line = rawLine.replace(/\s+$/, '');
+    const trimmed = line.trim();
+    if (trimmed === '') { out.push(''); return; }
+    const vnum = trimmed.match(/^\(?(\d{1,2})\)?\s+(.*)$/);
+    let lyric = line, label = '';
+    if (vnum) { label = `[Verse ${vnum[1]}]`; lyric = vnum[2]; }
+    if (label) { out.push(''); out.push(label); }
+
+    const lower = lyric.toLowerCase();
+    let chordLine = '';
+    let searchFrom = 0;
+    while (mIdx < markers.length) {
+      const anc = markers[mIdx].anchor;
+      const pos = anc ? lower.indexOf(anc, searchFrom) : -1;
+      if (pos < 0) break;
+      while (chordLine.length < pos) chordLine += ' ';
+      if (chordLine.length > pos) chordLine += ' ';
+      chordLine += markers[mIdx].chord;
+      searchFrom = pos + 1;
+      mIdx++;
+    }
+    if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
+    out.push(lyric);
+  });
+
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // Normalise a pasted chart into clean chords-above-lyrics layout.
