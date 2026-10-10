@@ -1143,53 +1143,61 @@ function looksLikeInlineChords(text) {
 }
 
 // Convert VerseView inline-chord text → chords-above-lyrics chart.
-// Splits chord tokens off the front of words and builds aligned two-line blocks.
-// Verse numbers (1-9) at a boundary start a new section.
+// Flows words together into continuous lines (chord row above lyric row),
+// wrapping at a sensible width, and starts a new section at verse numbers.
 function convertInlineChords(text) {
-  // Normalise whitespace to single spaces, keep as one stream
+  const CHORD = '[A-G][#b]?(?:m|maj|min|dim|aug|sus|add)?\\d{0,2}(?:\\/[A-G][#b]?)?';
+  const chordRe = new RegExp('^(' + CHORD + ')(.*)$');
+  const WRAP = 48; // characters per line before wrapping
+
+  // Normalise to a single whitespace-separated stream
   let stream = String(text).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Insert section breaks before standalone verse numbers like " 1 ", " 2 "
-  // and before "(number)" repeat markers.
-  stream = stream.replace(/\s(\(?\d\)?)\s/g, ' \n[Verse $1]\n ');
-
-  const CHORD = '[A-G][#b]?(?:m|maj|min|dim|aug|sus|add)?\\d{0,2}(?:\\/[A-G][#b]?)?';
-  const outBlocks = [];
-
-  stream.split('\n').forEach(segment => {
-    const seg = segment.trim();
-    if (!seg) return;
-    if (/^\[Verse/.test(seg)) { outBlocks.push(seg); return; }
-
-    // Walk the segment, pulling chord tokens that are glued to the start of a word
-    let chordLine = '';
-    let lyricLine = '';
-    // Tokenise on spaces but keep building aligned columns
-    const words = seg.split(' ');
-    words.forEach(word => {
-      if (!word) return;
-      // match a chord at the very start of the word, followed by lyric letters
-      const m = word.match(new RegExp('^(' + CHORD + ')(.*)$'));
-      let chord = '';
-      let lyric = word;
-      if (m && m[2] && /[a-z]/i.test(m[2])) { chord = m[1]; lyric = m[2]; }
-      else if (m && m[2] === '') { chord = m[1]; lyric = ''; } // standalone chord
-      // Pad so chord sits above the lyric start
-      const colStart = lyricLine.length ? lyricLine.length + 1 : 0;
-      if (chord) {
-        // pad chord line up to colStart
-        while (chordLine.length < colStart) chordLine += ' ';
-        chordLine += chord;
-      }
-      lyricLine += (lyricLine ? ' ' : '') + lyric;
-      // if chord longer than following, keep chord line in sync later
-    });
-    if (chordLine.trim()) outBlocks.push(chordLine.replace(/\s+$/,''));
-    if (lyricLine.trim()) outBlocks.push(lyricLine.replace(/\s+$/,''));
-    outBlocks.push(''); // blank line between phrases
+  // Tokenise into section markers + {chord, lyric} word tokens
+  const rawWords = stream.split(' ');
+  const tokens = [];
+  rawWords.forEach(w => {
+    if (!w) return;
+    // Verse number markers:  1  2  3  (3)  etc. → section break
+    if (/^\(?\d\)?$/.test(w)) { tokens.push({ section: w.replace(/[()]/g, '') }); return; }
+    const m = w.match(chordRe);
+    if (m && m[2] && /[^\s]/.test(m[2])) tokens.push({ chord: m[1], lyric: m[2] });
+    else if (m && m[2] === '')          tokens.push({ chord: m[1], lyric: '' });
+    else                                tokens.push({ chord: '',   lyric: w });
   });
 
-  return outBlocks.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const out = [];
+  let chordLine = '';
+  let lyricLine = '';
+
+  const flush = () => {
+    if (lyricLine.trim() || chordLine.trim()) {
+      if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
+      out.push(lyricLine.replace(/\s+$/, ''));
+    }
+    chordLine = ''; lyricLine = '';
+  };
+
+  tokens.forEach(tok => {
+    if (tok.section !== undefined) {
+      flush();
+      out.push('');
+      out.push(`[Verse ${tok.section}]`);
+      return;
+    }
+    // Wrap to keep lines readable
+    if (lyricLine.length >= WRAP) flush();
+
+    const col = lyricLine.length ? lyricLine.length + 1 : 0; // position of this word
+    if (tok.chord) {
+      while (chordLine.length < col) chordLine += ' ';
+      chordLine += tok.chord;
+    }
+    lyricLine += (lyricLine ? ' ' : '') + (tok.lyric || '');
+  });
+  flush();
+
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // Smart parser for pasted song content (VerseView-style or generic chord sheet).
