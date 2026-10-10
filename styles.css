@@ -249,7 +249,8 @@ body.has-bg::after {
 /* Allow the chord chart inside an expanded card to scroll horizontally */
 .song-card__detail,
 .song-card__detail .detail-row { min-width: 0; max-width: 100%; }
-.song-card__detail .detail-row { overflow: hidden; }
+.song-card__detail .detail-row { overflow: visible; }
+.chart-collapse { min-width: 0; max-width: 100%; overflow: visible; }
 .song-card:hover { box-shadow: 0 2px 8px rgba(44,36,22,.14); }
 .song-card__header {
   display: flex;
@@ -392,9 +393,11 @@ body.has-bg::after {
   font-size: 14px;
   line-height: 1.4;
   display: block;
-  overflow-x: scroll;          /* always allow sideways scroll */
+  overflow-x: auto;            /* allow sideways scroll */
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;   /* enable horizontal finger-drag on mobile */
+  overscroll-behavior-x: contain;
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

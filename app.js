@@ -122,16 +122,16 @@ function transposeChordLine(line, semitones, useFlats) {
   });
 }
 
-// Lyrics-only view: drop chord lines, keep section labels + lyrics
+// Lyrics-only view: drop chord lines, keep section labels + lyrics + spacing
 function renderLyricsOnly(text) {
   const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const html = lines.map(line => {
     if (line.trim() === '') return `<div class="chart-line chart-line--blank">&nbsp;</div>`;
     const trimmed = line.trim();
     if (/^\[.*\]$/.test(trimmed)) return `<div class="chart-line chart-label">${escapeHtml(line)}</div>`;
-    if (isChordLine(line)) return ''; // skip pure chord lines
+    if (isChordLine(line)) return null; // mark chord lines for removal (keep blanks)
     return `<div class="chart-line">${escapeHtml(line.trimEnd())}</div>`;
-  }).filter(x => x !== '').join('');
+  }).filter(x => x !== null).join('');
   return html;
 }
 
@@ -882,13 +882,26 @@ function openAddForm() {
   qs('#f-title').focus();
 }
 
+// Make sure a <select> can show an arbitrary stored value (add it if missing)
+function ensureSelectHasValue(sel, value) {
+  if (!sel || !value) return;
+  const exists = Array.from(sel.options).some(o => o.value === value);
+  if (!exists) sel.insertAdjacentHTML('beforeend', `<option value="${value}">${value}</option>`);
+}
+
 function openEditForm(id) {
   if (!canEdit()) { showToast('You do not have permission to edit songs.'); return; }
   const s = allSongs.find(x => x.id === id);
   if (!s) return;
   editingId = id;
   qs('#song-modal-title').textContent = 'Edit Song';
-  Object.entries(FIELDS).forEach(([k, fid]) => { qs(`#${fid}`).value = s[k === 'time' ? 'timeSignature' : k] || ''; });
+  Object.entries(FIELDS).forEach(([k, fid]) => {
+    const el = qs(`#${fid}`);
+    const val = s[k === 'time' ? 'timeSignature' : k] || '';
+    // For dropdowns, make sure the stored value is an available option
+    if (el.tagName === 'SELECT') ensureSelectHasValue(el, val);
+    el.value = val;
+  });
   qsa('.field__error').forEach(el => el.textContent = '');
   qsa('.field__input').forEach(el => el.classList.remove('is-invalid'));
   qs('#song-form-error').hidden = true;
@@ -935,6 +948,9 @@ qs('#song-form').addEventListener('submit', async e => {
       const inp = idMap[k] ? qs(`#${idMap[k]}`) : null;
       if (inp) inp.classList.add('is-invalid');
     });
+    const el = qs('#song-form-error');
+    el.textContent = 'Please fix the highlighted field(s): ' + Object.keys(errs).join(', ') + '.';
+    el.hidden = false;
     return;
   }
 
