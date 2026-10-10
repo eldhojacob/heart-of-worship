@@ -922,7 +922,7 @@ qs('#song-form').addEventListener('submit', async e => {
     details:       qs('#f-details').value.trim()    || null,
     notes:         qs('#f-notes').value.trim()      || null,
     youtube:       qs('#f-youtube').value.trim()    || null,
-    chart:         qs('#f-chart').value             || null,
+    chart:         normaliseChart(qs('#f-chart').value) || null,
   };
 
   const errs = validateDraft(draft);
@@ -1143,61 +1143,113 @@ function looksLikeInlineChords(text) {
 }
 
 // Convert VerseView inline-chord text → chords-above-lyrics chart.
-// Flows words together into continuous lines (chord row above lyric row),
-// wrapping at a sensible width, and starts a new section at verse numbers.
+// VerseView embeds chords MID-WORD (e.g. "daivaGmme" = daiva + Gm + me), so we
+// scan the whole stream and split out chord tokens wherever they appear.
 function convertInlineChords(text) {
-  const CHORD = '[A-G][#b]?(?:m|maj|min|dim|aug|sus|add)?\\d{0,2}(?:\\/[A-G][#b]?)?';
-  const chordRe = new RegExp('^(' + CHORD + ')(.*)$');
-  const WRAP = 48; // characters per line before wrapping
+  // Chord token: capital root A–G, optional accidental, quality, number, bass.
+  // Anchored so a capital letter that begins a chord is recognised anywhere.
+  const CHORD = /[A-G](?:#|b)?(?:maj|min|aug|dim|sus|add|m)?(?:7|9|11|13|6|5|4|2)?(?:\/[A-G](?:#|b)?)?/y;
+  const WRAP = 46;
 
-  // Normalise to a single whitespace-separated stream
-  let stream = String(text).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  // Normalise whitespace to single spaces
+  let s = String(text).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Tokenise into section markers + {chord, lyric} word tokens
-  const rawWords = stream.split(' ');
-  const tokens = [];
-  rawWords.forEach(w => {
-    if (!w) return;
-    // Verse number markers:  1  2  3  (3)  etc. → section break
-    if (/^\(?\d\)?$/.test(w)) { tokens.push({ section: w.replace(/[()]/g, '') }); return; }
-    const m = w.match(chordRe);
-    if (m && m[2] && /[^\s]/.test(m[2])) tokens.push({ chord: m[1], lyric: m[2] });
-    else if (m && m[2] === '')          tokens.push({ chord: m[1], lyric: '' });
-    else                                tokens.push({ chord: '',   lyric: w });
-  });
+  // Build an ordered list of events: {type:'chord', text} | {type:'lyric', text} | {type:'section', text}
+  const events = [];
+  let i = 0;
+  let lyricBuf = '';
+  const pushLyric = () => { if (lyricBuf) { events.push({ type: 'lyric', text: lyricBuf }); lyricBuf = ''; } };
 
+  while (i < s.length) {
+    const ch = s[i];
+
+    // Section markers: a digit optionally in parentheses, surrounded by spaces/edges
+    const secMatch = s.slice(i).match(/^\(?(\d)\)?(?=\s|$)/);
+    if (secMatch && (i === 0 || s[i-1] === ' ')) {
+      pushLyric();
+      events.push({ type: 'section', text: secMatch[1] });
+      i += secMatch[0].length;
+      continue;
+    }
+
+    // Try to match a chord starting at a capital A–G
+    if (ch >= 'A' && ch <= 'G') {
+      CHORD.lastIndex = i;
+      const m = CHORD.exec(s);
+      if (m && m[0]) {
+        // Heuristic: a capital A–G followed by lowercase that forms a word is a
+        // chord only if the capital truly starts a chord token. VerseView always
+        // glues real chords, so accept the match.
+        pushLyric();
+        events.push({ type: 'chord', text: m[0] });
+        i += m[0].length;
+        continue;
+      }
+    }
+    lyricBuf += ch;
+    i++;
+  }
+  pushLyric();
+
+  // Now lay out: walk events, placing chords above the lyric column where they occur
   const out = [];
   let chordLine = '';
   let lyricLine = '';
-
   const flush = () => {
     if (lyricLine.trim() || chordLine.trim()) {
       if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
-      out.push(lyricLine.replace(/\s+$/, ''));
+      out.push(lyricLine.replace(/\s+$/, '') || ' ');
     }
     chordLine = ''; lyricLine = '';
   };
 
-  tokens.forEach(tok => {
-    if (tok.section !== undefined) {
+  events.forEach(ev => {
+    if (ev.type === 'section') {
       flush();
       out.push('');
-      out.push(`[Verse ${tok.section}]`);
+      out.push(`[Verse ${ev.text}]`);
       return;
     }
-    // Wrap to keep lines readable
-    if (lyricLine.length >= WRAP) flush();
-
-    const col = lyricLine.length ? lyricLine.length + 1 : 0; // position of this word
-    if (tok.chord) {
+    if (ev.type === 'chord') {
+      // place chord at current lyric cursor
+      const col = lyricLine.length;
       while (chordLine.length < col) chordLine += ' ';
-      chordLine += tok.chord;
+      // ensure a gap after the previous chord
+      if (chordLine.length > col) chordLine += ' ';
+      chordLine += ev.text + ' ';
+      return;
     }
-    lyricLine += (lyricLine ? ' ' : '') + (tok.lyric || '');
+    // lyric text
+    let txt = ev.text;
+    while (txt.length) {
+      const space = WRAP - lyricLine.length;
+      if (space <= 0) { flush(); continue; }
+      lyricLine += txt.slice(0, space);
+      txt = txt.slice(space);
+      if (txt.length) flush();
+    }
   });
   flush();
 
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  // Trim one leading space that can appear on wrapped lyric lines
+  return out
+    .map(l => (l.startsWith(' ') && !isChordLine(l) ? l.replace(/^ +/, '') : l))
+    .join('\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// If a chart was pasted in VerseView inline-chord form, convert it to the
+// chords-above-lyrics layout. Otherwise return it unchanged.
+function normaliseChart(text) {
+  if (!text || !text.trim()) return text;
+  // If it already has newlines AND chord lines, assume it's already formatted
+  const hasNewlines = /\n/.test(text);
+  const alreadyFormatted = hasNewlines && text.split('\n').some(l => isChordLine(l));
+  if (alreadyFormatted) return text;
+  if (looksLikeInlineChords(text)) return convertInlineChords(text);
+  return text;
 }
 
 // Smart parser for pasted song content (VerseView-style or generic chord sheet).
