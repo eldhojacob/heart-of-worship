@@ -1151,8 +1151,15 @@ function convertInlineChords(text) {
   const CHORD = /[A-G](?:#|b)?(?:maj|min|aug|dim|sus|add|m)?(?:7|9|11|13|6|5|4|2)?(?:\/[A-G](?:#|b)?)?/y;
   const WRAP = 46;
 
-  // Normalise whitespace to single spaces
-  let s = String(text).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  // Preserve meaningful phrase breaks: VerseView uses runs of 2+ spaces (or
+  // existing newlines) between phrases. Convert those to a marker, then
+  // collapse the rest of the whitespace.
+  let s = String(text)
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]{2,}/g, '\n')   // 2+ spaces = phrase break
+    .replace(/[ \t]+/g, ' ')
+    .trim();
 
   // Build an ordered list of events: {type:'chord', text} | {type:'lyric', text} | {type:'section', text}
   const events = [];
@@ -1163,9 +1170,17 @@ function convertInlineChords(text) {
   while (i < s.length) {
     const ch = s[i];
 
-    // Section markers: a digit optionally in parentheses, surrounded by spaces/edges
-    const secMatch = s.slice(i).match(/^\(?(\d)\)?(?=\s|$)/);
-    if (secMatch && (i === 0 || s[i-1] === ' ')) {
+    // Phrase break (from a run of spaces or a newline) → line break event
+    if (ch === '\n') {
+      pushLyric();
+      events.push({ type: 'break' });
+      i++;
+      continue;
+    }
+
+    // Section markers: a digit optionally in parentheses at a boundary
+    const secMatch = s.slice(i).match(/^\(?(\d)\)?(?=\s|\n|$)/);
+    if (secMatch && (i === 0 || s[i-1] === ' ' || s[i-1] === '\n')) {
       pushLyric();
       events.push({ type: 'section', text: secMatch[1] });
       i += secMatch[0].length;
@@ -1204,6 +1219,10 @@ function convertInlineChords(text) {
   };
 
   events.forEach(ev => {
+    if (ev.type === 'break') {
+      flush();
+      return;
+    }
     if (ev.type === 'section') {
       flush();
       out.push('');
