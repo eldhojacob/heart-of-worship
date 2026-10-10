@@ -1289,13 +1289,107 @@ function buildChart(chordsText, lyricsText) {
   const hasChords = chordsText && chordsText.trim();
   const hasLyrics = lyricsText && lyricsText.trim();
   if (hasChords && hasLyrics) {
-    // Re-place the chords from the chords field onto the CLEAN lyric lines so
-    // every chord sits above the correct syllable with proper word spacing.
-    return mergeChordsWithLyrics(chordsText, lyricsText);
+    // Chords field = VerseView "with chords" (chords glued to English words).
+    // Lyrics field = full lyrics (Malayalam line + English line per verse).
+    // Output per verse: Malayalam line, then chord row above the English line.
+    return mergeChordsOverMixedLyrics(chordsText, lyricsText);
   }
   if (hasChords) return normaliseChart(chordsText);
   if (hasLyrics) return lyricsText.trim();   // lyrics only, no chords
   return null;
+}
+
+// Extract ordered chord tokens from VerseView glued text.
+function extractChordMarkers(chordsText) {
+  const CHORD = /[A-G](?:#|b)?(?:maj|min|aug|dim|sus|add|m)?(?:\d{1,2})?(?:\/[A-G](?:#|b)?)?/y;
+  const src = String(chordsText).replace(/\u00a0/g, ' ');
+  const markers = [];
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch >= 'A' && ch <= 'G') {
+      CHORD.lastIndex = i;
+      const m = CHORD.exec(src);
+      // a chord is one glued to a following letter (VerseView style)
+      if (m && m[0] && /[a-zA-Z]/.test(src[i + m[0].length] || '')) {
+        markers.push(m[0]);
+        i += m[0].length;
+        continue;
+      }
+    }
+    i++;
+  }
+  return markers;
+}
+
+// Build the final chart: keep Malayalam lines, place chords above English lines.
+function mergeChordsOverMixedLyrics(chordsText, lyricsText) {
+  const markers = extractChordMarkers(chordsText);
+  // Split chords into groups, one group per English line, so each English line
+  // gets its fair share of the chords in order.
+  const lines = String(lyricsText).replace(/\r\n?/g, '\n').split('\n').map(l => l.replace(/\s+$/, ''));
+
+  // Identify English (Latin) lyric lines so we can distribute chords across them
+  const isLatinLyric = l => l.trim() !== '' && !/^\(?\d{1,2}\)?$/.test(l.trim())
+    && !/[^\u0000-\u024F\s'’.,;:\-()]/.test(l);     // only Latin letters/punct
+  const isMalayalam  = l => /[^\u0000-\u024F\s'’.,;:\-()]/.test(l);
+
+  const englishLineCount = lines.filter(isLatinLyric).length || 1;
+
+  // Distribute markers roughly evenly across the English lines, by word count
+  const englishWordCounts = lines.filter(isLatinLyric)
+    .map(l => (l.trim().replace(/^\(?\d{1,2}\)?\s+/, '').match(/\S+/g) || []).length);
+  const totalWords = englishWordCounts.reduce((a, b) => a + b, 0) || 1;
+
+  const out = [];
+  let mIdx = 0;
+  let englishSeen = 0;
+
+  lines.forEach(raw => {
+    const line = raw;
+    const trimmed = line.trim();
+    if (trimmed === '') { out.push(''); return; }
+
+    // Verse number line
+    if (/^\(?(\d{1,2})\)?$/.test(trimmed)) {
+      out.push('');
+      out.push(`[Verse ${trimmed.replace(/[()]/g, '')}]`);
+      return;
+    }
+
+    // Malayalam line → keep as-is
+    if (isMalayalam(line)) { out.push(line); return; }
+
+    // English line → put chords above it
+    if (isLatinLyric(line)) {
+      const lyric = line.replace(/^\(?\d{1,2}\)?\s+/, '');
+      const words = englishWordCounts[englishSeen] || 0;
+      englishSeen++;
+      // how many chords for this line (proportional, at least enough to cover words)
+      const share = Math.max(0, Math.min(markers.length - mIdx, words));
+      const wordStarts = [];
+      const re = /\S+/g; let wm;
+      while ((wm = re.exec(lyric)) !== null) wordStarts.push(wm.index);
+
+      let chordLine = '';
+      for (let w = 0; w < wordStarts.length && mIdx < markers.length && w < share; w++) {
+        const col = wordStarts[w];
+        const need = chordLine.length === 0 ? col : Math.max(col, chordLine.length + 1);
+        while (chordLine.length < need) chordLine += ' ';
+        chordLine += markers[mIdx];
+        mIdx++;
+      }
+      if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
+      out.push(lyric);
+      return;
+    }
+
+    // anything else
+    out.push(line);
+  });
+
+  // If chords remain unplaced, append them above the last English line's area
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // True if a line contains Malayalam (or other non-Latin) script characters
