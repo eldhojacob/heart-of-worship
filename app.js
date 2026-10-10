@@ -1322,35 +1322,47 @@ function extractChordMarkers(chordsText) {
   return markers;
 }
 
-// Build the final chart: keep Malayalam lines, place chords above English lines.
+// Split the Chords field into one chord-group PER English phrase/line.
+// VerseView separates phrases with 2+ spaces or newlines; verse numbers also
+// break phrases. Returns an array of arrays-of-chord-strings.
+function splitChordGroups(chordsText) {
+  // Normalise: 2+ spaces or newlines → a single phrase-break marker "\n"
+  let s = String(chordsText)
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]{2,}/g, '\n')
+    .replace(/\n+/g, '\n')
+    .trim();
+
+  // Also break before a standalone verse number
+  s = s.replace(/(^|\n)\s*\(?\d{1,2}\)?\s+/g, '\n');
+
+  const groups = [];
+  s.split('\n').forEach(phrase => {
+    const chords = extractChordMarkers(phrase);
+    if (chords.length) groups.push(chords);
+  });
+  return groups;
+}
+
+// Build the final chart: keep Malayalam lines; above each English line place the
+// chords from the matching (same-order) chord group of the Chords field.
 function mergeChordsOverMixedLyrics(chordsText, lyricsText) {
-  const markers = extractChordMarkers(chordsText);
-  // Split chords into groups, one group per English line, so each English line
-  // gets its fair share of the chords in order.
+  const groups = splitChordGroups(chordsText);
   const lines = String(lyricsText).replace(/\r\n?/g, '\n').split('\n').map(l => l.replace(/\s+$/, ''));
 
-  // Identify English (Latin) lyric lines so we can distribute chords across them
-  const isLatinLyric = l => l.trim() !== '' && !/^\(?\d{1,2}\)?$/.test(l.trim())
-    && !/[^\u0000-\u024F\s'’.,;:\-()]/.test(l);     // only Latin letters/punct
-  const isMalayalam  = l => /[^\u0000-\u024F\s'’.,;:\-()]/.test(l);
-
-  const englishLineCount = lines.filter(isLatinLyric).length || 1;
-
-  // Distribute markers roughly evenly across the English lines, by word count
-  const englishWordCounts = lines.filter(isLatinLyric)
-    .map(l => (l.trim().replace(/^\(?\d{1,2}\)?\s+/, '').match(/\S+/g) || []).length);
-  const totalWords = englishWordCounts.reduce((a, b) => a + b, 0) || 1;
+  const isMalayalam  = l => /[^\u0000-\u024F\s'’.,;:\-()\d]/.test(l);
+  const isLatinLyric = l => l.trim() !== '' && !/^\(?\d{1,2}\)?$/.test(l.trim()) && !isMalayalam(l);
 
   const out = [];
-  let mIdx = 0;
-  let englishSeen = 0;
+  let gIdx = 0; // which chord group (English line index)
 
   lines.forEach(raw => {
     const line = raw;
     const trimmed = line.trim();
     if (trimmed === '') { out.push(''); return; }
 
-    // Verse number line
+    // Verse number line → label
     if (/^\(?(\d{1,2})\)?$/.test(trimmed)) {
       out.push('');
       out.push(`[Verse ${trimmed.replace(/[()]/g, '')}]`);
@@ -1360,35 +1372,34 @@ function mergeChordsOverMixedLyrics(chordsText, lyricsText) {
     // Malayalam line → keep as-is
     if (isMalayalam(line)) { out.push(line); return; }
 
-    // English line → put chords above it
+    // English line → place this line's matching chord group above it
     if (isLatinLyric(line)) {
       const lyric = line.replace(/^\(?\d{1,2}\)?\s+/, '');
-      const words = englishWordCounts[englishSeen] || 0;
-      englishSeen++;
-      // how many chords for this line (proportional, at least enough to cover words)
-      const share = Math.max(0, Math.min(markers.length - mIdx, words));
+      const chords = groups[gIdx] || [];
+      gIdx++;
+
+      // word start columns in the clean English lyric
       const wordStarts = [];
       const re = /\S+/g; let wm;
       while ((wm = re.exec(lyric)) !== null) wordStarts.push(wm.index);
 
       let chordLine = '';
-      for (let w = 0; w < wordStarts.length && mIdx < markers.length && w < share; w++) {
-        const col = wordStarts[w];
+      for (let c = 0; c < chords.length; c++) {
+        // place chord c above word c (or append with a gap if more chords than words)
+        const col = (c < wordStarts.length) ? wordStarts[c]
+                  : (chordLine.length + 1);
         const need = chordLine.length === 0 ? col : Math.max(col, chordLine.length + 1);
         while (chordLine.length < need) chordLine += ' ';
-        chordLine += markers[mIdx];
-        mIdx++;
+        chordLine += chords[c];
       }
       if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
       out.push(lyric);
       return;
     }
 
-    // anything else
     out.push(line);
   });
 
-  // If chords remain unplaced, append them above the last English line's area
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
