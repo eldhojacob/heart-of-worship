@@ -1133,10 +1133,94 @@ function buildFromDocument(text) {
   return [{ data: rec, valid: !error, error }];
 }
 
+// Detect whether pasted text uses VerseView inline chords glued to words,
+// e.g. "Fnandi Cnandi Amen daivaGmme". Heuristic: many words start with a
+// capital-letter chord token immediately followed by lowercase letters.
+function looksLikeInlineChords(text) {
+  const chordAtWordStart = /(^|\s)([A-G][#b]?(?:m|maj|min|dim|aug|sus|add)?\d{0,2})(?=[a-z])/g;
+  const matches = (text.match(chordAtWordStart) || []).length;
+  return matches >= 4; // several glued chords → treat as inline
+}
+
+// Convert VerseView inline-chord text → chords-above-lyrics chart.
+// Splits chord tokens off the front of words and builds aligned two-line blocks.
+// Verse numbers (1-9) at a boundary start a new section.
+function convertInlineChords(text) {
+  // Normalise whitespace to single spaces, keep as one stream
+  let stream = String(text).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Insert section breaks before standalone verse numbers like " 1 ", " 2 "
+  // and before "(number)" repeat markers.
+  stream = stream.replace(/\s(\(?\d\)?)\s/g, ' \n[Verse $1]\n ');
+
+  const CHORD = '[A-G][#b]?(?:m|maj|min|dim|aug|sus|add)?\\d{0,2}(?:\\/[A-G][#b]?)?';
+  const outBlocks = [];
+
+  stream.split('\n').forEach(segment => {
+    const seg = segment.trim();
+    if (!seg) return;
+    if (/^\[Verse/.test(seg)) { outBlocks.push(seg); return; }
+
+    // Walk the segment, pulling chord tokens that are glued to the start of a word
+    let chordLine = '';
+    let lyricLine = '';
+    // Tokenise on spaces but keep building aligned columns
+    const words = seg.split(' ');
+    words.forEach(word => {
+      if (!word) return;
+      // match a chord at the very start of the word, followed by lyric letters
+      const m = word.match(new RegExp('^(' + CHORD + ')(.*)$'));
+      let chord = '';
+      let lyric = word;
+      if (m && m[2] && /[a-z]/i.test(m[2])) { chord = m[1]; lyric = m[2]; }
+      else if (m && m[2] === '') { chord = m[1]; lyric = ''; } // standalone chord
+      // Pad so chord sits above the lyric start
+      const colStart = lyricLine.length ? lyricLine.length + 1 : 0;
+      if (chord) {
+        // pad chord line up to colStart
+        while (chordLine.length < colStart) chordLine += ' ';
+        chordLine += chord;
+      }
+      lyricLine += (lyricLine ? ' ' : '') + lyric;
+      // if chord longer than following, keep chord line in sync later
+    });
+    if (chordLine.trim()) outBlocks.push(chordLine.replace(/\s+$/,''));
+    if (lyricLine.trim()) outBlocks.push(lyricLine.replace(/\s+$/,''));
+    outBlocks.push(''); // blank line between phrases
+  });
+
+  return outBlocks.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 // Smart parser for pasted song content (VerseView-style or generic chord sheet).
 // Detects title + optional labelled fields, keeps chords/lyrics as the chart.
 function buildFromPastedSong(text) {
-  const raw = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  let raw = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // If VerseView glued the chords into the words, convert to a proper
+  // chords-above-lyrics chart first.
+  if (looksLikeInlineChords(raw)) {
+    const chart = convertInlineChords(raw);
+    // Try to grab a title: VerseView often has none, so use first lyric word group.
+    const firstLyric = (chart.split('\n').find(l => l.trim() && !isChordLine(l) && !/^\[/.test(l)) || '').trim();
+    const title = firstLyric.split(/\s+/).slice(0, 5).join(' ') || 'Untitled song';
+    // Detect key from first chord token
+    let key = '';
+    const firstChordLine = chart.split('\n').find(l => isChordLine(l));
+    if (firstChordLine) {
+      const km = firstChordLine.trim().split(/\s+/)[0].match(/^([A-G][#b]?m?)/);
+      if (km) key = km[1];
+    }
+    const rec = {
+      title, key: key || 'C', timeSignature: '4/4',
+      fTranspose: null, language: 'Malayalam', artist: null,
+      details: null, notes: null, youtube: null, chart,
+    };
+    let error = '';
+    if (!KEY_REGEX.test(rec.key)) error = 'detected key looks invalid: ' + rec.key;
+    return [{ data: rec, valid: !error, error }];
+  }
+
   // Strip common VerseView noise lines (nav, share, ads, comments prompts)
   const noise = /^(home|search|share|facebook|twitter|whatsapp|print|download|comments?|related posts|tags?:|category:|posted on|leave a reply|verseview).*$/i;
   let lines = raw.split('\n').map(l => l.replace(/\u00a0/g, ' ').trimEnd());
