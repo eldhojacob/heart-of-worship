@@ -1137,9 +1137,11 @@ function buildFromDocument(text) {
 // e.g. "Fnandi Cnandi Amen daivaGmme". Heuristic: many words start with a
 // capital-letter chord token immediately followed by lowercase letters.
 function looksLikeInlineChords(text) {
-  const chordAtWordStart = /(^|\s)([A-G][#b]?(?:m|maj|min|dim|aug|sus|add)?\d{0,2})(?=[a-z])/g;
-  const matches = (text.match(chordAtWordStart) || []).length;
-  return matches >= 4; // several glued chords → treat as inline
+  // A capital chord root (A–G, optional accidental/quality) immediately followed
+  // by a lowercase letter — anywhere, including mid-word (e.g. "LokeAnjanen").
+  const glued = /[A-G](?:#|b)?(?:maj|min|aug|dim|sus|add|m)?(?:\d{1,2})?(?=[a-z])/g;
+  const matches = (text.match(glued) || []).length;
+  return matches >= 4;
 }
 
 // Convert VerseView inline-chord text → chords-above-lyrics chart.
@@ -1272,26 +1274,36 @@ function normaliseChart(text) {
     return convertInlineChords(text);
   }
 
-  // Case B: reflow line-separated fragments.
-  // Rebuild a single inline stream, then run the inline converter so the
-  // chord-over-lyric alignment and verse-splitting are consistent.
+  // Case B: reflow line-separated fragments back into VerseView's glued inline
+  // form, WITHOUT inserting spaces that weren't there originally.
+  // The old broken format alternates:  <lyric fragment> / <chord> / <lyric> ...
+  // A chord gets glued directly onto the following lyric fragment (no space),
+  // because VerseView split words mid-way (e.g. "sanni" | A | "dhaw" = "sanniAdhaw").
   const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
   let stream = '';
+  let pendingChord = '';
   lines.forEach(raw => {
-    const line = raw.trim();
-    if (line === '') { stream += '    '; return; }      // blank line → phrase break (4 spaces)
-    // Verse number alone on a line → keep as a boundary token
-    if (/^\(?\d\)?$/.test(line)) { stream += ' ' + line.replace(/[()]/g, '') + ' '; return; }
-    if (isChordLine(line)) {
-      // a pure chord line: glue it onto the start of the next lyric
-      stream += (stream && !stream.endsWith(' ') ? '' : '') + line.replace(/\s+/g, '') ;
+    const line = raw.replace(/\s+$/,''); // keep leading spaces, drop trailing
+    const trimmed = line.trim();
+    if (trimmed === '') { stream += '    '; pendingChord = ''; return; } // phrase break
+    if (/^\(?\d\)?$/.test(trimmed)) { stream += ' ' + trimmed.replace(/[()]/g,'') + ' '; return; }
+    if (isChordLine(trimmed)) {
+      // hold the chord; glue it onto the very next lyric fragment
+      pendingChord = trimmed.replace(/\s+/g, '');
+      return;
+    }
+    // lyric fragment
+    if (pendingChord) {
+      stream += pendingChord + trimmed;   // glue chord + lyric with NO space
+      pendingChord = '';
     } else {
-      // lyric (may start with a leading verse number like "1 Loke")
-      stream += line + ' ';
+      // a lyric fragment with no preceding chord: it continues the previous word
+      // only if the previous char isn't a space; otherwise it's a new word.
+      stream += (stream === '' || stream.endsWith(' ') ? '' : ' ') + trimmed;
     }
   });
+  if (pendingChord) stream += pendingChord;
 
-  // If we actually have glued chords now, convert; else return cleaned text
   if (looksLikeInlineChords(stream)) return convertInlineChords(stream);
   return text;
 }
