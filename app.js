@@ -1288,11 +1288,12 @@ function convertInlineChords(text) {
 function buildChart(chordsText, lyricsText) {
   const hasChords = chordsText && chordsText.trim();
   const hasLyrics = lyricsText && lyricsText.trim();
-  if (hasChords) {
-    const parsed = normaliseChart(chordsText);
-    if (hasLyrics) return correctLyricLines(parsed, lyricsText);
-    return parsed;
+  if (hasChords && hasLyrics) {
+    // Re-place the chords from the chords field onto the CLEAN lyric lines so
+    // every chord sits above the correct syllable with proper word spacing.
+    return mergeChordsWithLyrics(chordsText, lyricsText);
   }
+  if (hasChords) return normaliseChart(chordsText);
   if (hasLyrics) return lyricsText.trim();   // lyrics only, no chords
   return null;
 }
@@ -1353,30 +1354,42 @@ function mergeChordsWithLyrics(chordsText, lyricsText) {
     i++;
   }
 
+  // Only keep transliterated (Latin) lyric lines; skip Malayalam-script lines.
+  // Distribute the chords across each line's WORDS by position: chord N goes
+  // above word N of the line. This avoids exact-spelling matching (VerseView
+  // and the clean lyrics often transliterate differently).
   const lyricLines = String(lyricsText).replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   let mIdx = 0;
 
+  // Rough estimate: how many chords belong to a line = proportional to its word
+  // count vs. total words. Simpler & reliable: place chords sequentially, one per
+  // word, until the line's words run out, then move to the next line.
   lyricLines.forEach(rawLine => {
     const line = rawLine.replace(/\s+$/, '');
     const trimmed = line.trim();
     if (trimmed === '') { out.push(''); return; }
+    // Skip non-Latin (Malayalam) lines entirely
+    if (/[^\u0000-\u024F\s]/.test(line)) { out.push(line); return; }
+
     const vnum = trimmed.match(/^\(?(\d{1,2})\)?\s+(.*)$/);
     let lyric = line, label = '';
     if (vnum) { label = `[Verse ${vnum[1]}]`; lyric = vnum[2]; }
     if (label) { out.push(''); out.push(label); }
 
-    const lower = lyric.toLowerCase();
+    // Find word start positions in the clean lyric
+    const wordStarts = [];
+    const re = /\S+/g; let wm;
+    while ((wm = re.exec(lyric)) !== null) wordStarts.push(wm.index);
+
+    // Place one chord per word, in order, until we run out of chords or words
     let chordLine = '';
-    let searchFrom = 0;
-    while (mIdx < markers.length) {
-      const anc = markers[mIdx].anchor;
-      const pos = anc ? lower.indexOf(anc, searchFrom) : -1;
-      if (pos < 0) break;
-      while (chordLine.length < pos) chordLine += ' ';
-      if (chordLine.length > pos) chordLine += ' ';
+    for (let w = 0; w < wordStarts.length && mIdx < markers.length; w++) {
+      const col = wordStarts[w];
+      // ensure at least one space gap after the previous chord
+      const need = chordLine.length === 0 ? col : Math.max(col, chordLine.length + 1);
+      while (chordLine.length < need) chordLine += ' ';
       chordLine += markers[mIdx].chord;
-      searchFrom = pos + 1;
       mIdx++;
     }
     if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
