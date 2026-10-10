@@ -1259,15 +1259,40 @@ function convertInlineChords(text) {
     .trim();
 }
 
-// If a chart was pasted in VerseView inline-chord form, convert it to the
-// chords-above-lyrics layout. Otherwise return it unchanged.
+// Normalise a pasted chart into clean chords-above-lyrics layout.
+// Handles both VerseView forms:
+//   (a) glued inline chords: "SworEga geAsus2he viruthin"
+//   (b) already split into many tiny chord/lyric lines (what the textarea
+//       often produces) — we re-flow these into proper phrase lines.
 function normaliseChart(text) {
   if (!text || !text.trim()) return text;
-  // If it already has newlines AND chord lines, assume it's already formatted
-  const hasNewlines = /\n/.test(text);
-  const alreadyFormatted = hasNewlines && text.split('\n').some(l => isChordLine(l));
-  if (alreadyFormatted) return text;
-  if (looksLikeInlineChords(text)) return convertInlineChords(text);
+
+  // Case A: glued inline chords with few/no newlines → use the inline converter
+  if (looksLikeInlineChords(text) && (text.match(/\n/g) || []).length < 4) {
+    return convertInlineChords(text);
+  }
+
+  // Case B: reflow line-separated fragments.
+  // Rebuild a single inline stream, then run the inline converter so the
+  // chord-over-lyric alignment and verse-splitting are consistent.
+  const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+  let stream = '';
+  lines.forEach(raw => {
+    const line = raw.trim();
+    if (line === '') { stream += '    '; return; }      // blank line → phrase break (4 spaces)
+    // Verse number alone on a line → keep as a boundary token
+    if (/^\(?\d\)?$/.test(line)) { stream += ' ' + line.replace(/[()]/g, '') + ' '; return; }
+    if (isChordLine(line)) {
+      // a pure chord line: glue it onto the start of the next lyric
+      stream += (stream && !stream.endsWith(' ') ? '' : '') + line.replace(/\s+/g, '') ;
+    } else {
+      // lyric (may start with a leading verse number like "1 Loke")
+      stream += line + ' ';
+    }
+  });
+
+  // If we actually have glued chords now, convert; else return cleaned text
+  if (looksLikeInlineChords(stream)) return convertInlineChords(stream);
   return text;
 }
 
