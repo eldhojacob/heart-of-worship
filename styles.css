@@ -195,6 +195,29 @@ body.has-bg::after {
   font-style: italic;
   padding: .5rem .25rem;
 }
+.sunday-date {
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--color-amber);
+  margin: -.25rem 0 .5rem;
+}
+/* Previous Sundays list */
+.prev-sunday-list { display: flex; flex-direction: column; gap: 1rem; }
+.prev-week {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: .75rem 1rem;
+  background: #fff;
+}
+.prev-week__date {
+  font-weight: 700;
+  color: var(--color-green);
+  margin-bottom: .5rem;
+  font-size: .95rem;
+}
+.prev-week__group { margin-top: .4rem; }
+.prev-week__group h4 { font-size: .8rem; color: var(--color-amber); margin-bottom: .2rem; }
+.prev-week__song { font-size: .85rem; padding: .15rem 0; display: flex; gap: .5rem; align-items: center; }
 
 /* Sunday toggle button on cards */
 .btn--sunday { background: transparent; color: var(--color-amber); border-color: var(--color-amber); }
@@ -527,7 +550,19 @@ body.has-bg::after {
   border-radius: 999px;
   white-space: nowrap;
 }
-.settings-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.settings-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; position: relative; }
+/* Close (✕) button pinned to the top-right corner of any modal */
+.modal__inner { position: relative; }
+.modal__inner .input-toggle[aria-label="Close"],
+.modal__inner .input-toggle[aria-label="Close settings"] {
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+  z-index: 5;
+  font-size: 1.1rem;
+}
+/* keep the title clear of the corner button */
+.settings-header .modal__title { padding-right: 2rem; }
 
 /* Settings menu list */
 .settings-menu { display: flex; flex-direction: column; gap: .5rem; }

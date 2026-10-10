@@ -174,6 +174,29 @@ let currentUser = null; // { username, role, perms:{add,edit,delete} }
 let usersCache  = [];   // list of users from config/users
 let songsVisible = false; // the song list is hidden on landing until shown
 let sundayIds    = [];    // song IDs on the Upcoming Sunday Worship list
+let sundayWeek   = '';    // ISO date (yyyy-mm-dd) of the upcoming Sunday this list is for
+let sundayHistory = [];   // [{ date: 'yyyy-mm-dd', songIds: [...] }]
+
+// ── Date helpers ─────────────────────────────────────────────────────────────
+// Returns the upcoming Sunday (today if today is Sunday) as a Date
+function upcomingSundayDate(from = new Date()) {
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const day = d.getDay();                 // 0 = Sunday
+  const add = day === 0 ? 0 : (7 - day);
+  d.setDate(d.getDate() + add);
+  return d;
+}
+function toISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+function formatDMY(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
 
 // Permission helpers
 const isLoggedIn = () => !!currentUser;
@@ -368,17 +391,61 @@ function renderSongList(songs) {
 }
 
 // ── Upcoming Sunday Worship ──────────────────────────────────────────────────
-// Stored in Firestore at config/sunday → { songIds: [...] }. Live-synced.
+// config/sunday → { songIds: [...], weekDate: 'yyyy-mm-dd' }  (live-synced)
+// config/sundayHistory → { archives: [{ date, songIds }] }
 db.collection('config').doc('sunday').onSnapshot(
-  snap => { sundayIds = (snap.exists && Array.isArray(snap.data().songIds)) ? snap.data().songIds : []; renderSunday(); applyFilters(); },
-  err  => console.error('sunday listener error:', err)
+  snap => {
+    const data = snap.exists ? snap.data() : {};
+    sundayIds  = Array.isArray(data.songIds) ? data.songIds : [];
+    sundayWeek = data.weekDate || '';
+    maybeArchivePastWeek();   // auto-roll the week if it's in the past
+    renderSunday();
+    applyFilters();
+  },
+  err => console.error('sunday listener error:', err)
 );
+
+db.collection('config').doc('sundayHistory').onSnapshot(
+  snap => { sundayHistory = (snap.exists && Array.isArray(snap.data().archives)) ? snap.data().archives : []; },
+  err  => console.error('sunday history listener error:', err)
+);
+
+// If the stored week date is before this week's upcoming Sunday, archive it
+// and reset the current list for the new upcoming Sunday.
+let archiveInFlight = false;
+async function maybeArchivePastWeek() {
+  const todayUpcoming = toISODate(upcomingSundayDate());
+  // No week set yet → set it to the upcoming Sunday (no archive)
+  if (!sundayWeek) {
+    try { await ensureAnonAuthForSunday(); await db.collection('config').doc('sunday').set({ weekDate: todayUpcoming }, { merge: true }); } catch (e) { /* non-critical */ }
+    return;
+  }
+  if (sundayWeek >= todayUpcoming) return;   // still current/future — nothing to do
+  if (archiveInFlight) return;
+  archiveInFlight = true;
+  try {
+    await ensureAnonAuthForSunday();
+    // Archive the old week only if it had songs
+    if (sundayIds.length) {
+      const existing = sundayHistory.filter(a => a.date !== sundayWeek);
+      const archives = [{ date: sundayWeek, songIds: sundayIds }, ...existing].slice(0, 52); // keep ~1 year
+      await db.collection('config').doc('sundayHistory').set({ archives }, { merge: true });
+    }
+    // Reset current list for the new upcoming Sunday
+    await db.collection('config').doc('sunday').set({ songIds: [], weekDate: todayUpcoming }, { merge: true });
+  } catch (ex) {
+    console.error('archive error:', ex);
+  } finally {
+    archiveInFlight = false;
+  }
+}
 
 async function toggleSunday(id) {
   const next = sundayIds.includes(id) ? sundayIds.filter(x => x !== id) : [...sundayIds, id];
+  const week = sundayWeek || toISODate(upcomingSundayDate());
   try {
     await ensureAnonAuthForSunday();
-    await db.collection('config').doc('sunday').set({ songIds: next }, { merge: true });
+    await db.collection('config').doc('sunday').set({ songIds: next, weekDate: week }, { merge: true });
     showToast(sundayIds.includes(id) ? 'Removed from Sunday.' : 'Added to Sunday.');
   } catch (ex) {
     console.error(ex);
@@ -402,6 +469,13 @@ function renderSunday() {
   const mlWrap   = qs('#sunday-list-malayalam');
   const enWrap   = qs('#sunday-list-english');
   if (!mlWrap || !enWrap) return;
+
+  // Show the upcoming Sunday's date
+  const dateEl = qs('#sunday-date');
+  if (dateEl) {
+    const iso = sundayWeek || toISODate(upcomingSundayDate());
+    dateEl.textContent = '📅 ' + formatDMY(iso);
+  }
 
   // Resolve IDs → song objects, preserving chosen order
   const songs = sundayIds.map(id => allSongs.find(s => s.id === id)).filter(Boolean);
@@ -429,6 +503,44 @@ qs('#btn-sunday-open').addEventListener('click', () => {
   qs('#sunday-modal').showModal();
 });
 qs('#btn-sunday-close').addEventListener('click', () => qs('#sunday-modal').close());
+
+// Previous Sundays
+qs('#btn-sunday-prev').addEventListener('click', () => {
+  qs('#sunday-modal').close();
+  renderPrevSundays();
+  qs('#prev-sunday-modal').showModal();
+});
+qs('#btn-prev-sunday-close').addEventListener('click', () => qs('#prev-sunday-modal').close());
+qs('#btn-back-to-current').addEventListener('click', () => {
+  qs('#prev-sunday-modal').close();
+  renderSunday();
+  qs('#sunday-modal').showModal();
+});
+
+function renderPrevSundays() {
+  const wrap = qs('#prev-sunday-list');
+  if (!sundayHistory.length) {
+    wrap.innerHTML = '<p class="sunday-empty">No previous Sunday worship lists yet.</p>';
+    return;
+  }
+  const isMalayalam = s => (s.language || '').trim().toLowerCase() === 'malayalam';
+  wrap.innerHTML = sundayHistory
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : -1))   // newest first
+    .map(week => {
+      const songs = (week.songIds || []).map(id => allSongs.find(s => s.id === id)).filter(Boolean);
+      const ml = songs.filter(isMalayalam);
+      const en = songs.filter(s => !isMalayalam(s));
+      const groupHtml = (label, list) => list.length
+        ? `<div class="prev-week__group"><h4>🕊 ${label}</h4>${list.map(s =>
+            `<div class="prev-week__song">${renderKeyBadge(s.key)} <span>${s.title}</span></div>`).join('')}</div>`
+        : '';
+      return `<div class="prev-week">
+        <div class="prev-week__date">📅 ${formatDMY(week.date)}</div>
+        ${songs.length ? (groupHtml('Malayalam', ml) + groupHtml('English', en)) : '<p class="sunday-empty">No songs recorded.</p>'}
+      </div>`;
+    }).join('');
+}
 
 qs('#btn-sunday-clear').addEventListener('click', async () => {
   if (!isAdmin()) { showToast('Only admins can clear the Sunday list.'); return; }

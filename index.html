@@ -22,7 +22,7 @@
   <!-- pdf.js (legacy UMD build so it is available as window.pdfjsLib) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=27" />
+  <link rel="stylesheet" href="styles.css?v=28" />
 </head>
 <body>
 
@@ -73,6 +73,7 @@
         <h2 id="sunday-title" class="modal__title">✝ Upcoming Sunday Worship</h2>
         <button type="button" id="btn-sunday-close" class="input-toggle" aria-label="Close">✕</button>
       </div>
+      <p id="sunday-date" class="sunday-date"></p>
 
       <div class="sunday-group" id="sunday-group-malayalam">
         <h3 class="sunday-subtitle">🕊 Malayalam</h3>
@@ -84,8 +85,23 @@
         <div id="sunday-list-english" class="song-list song-list--embedded"></div>
       </div>
 
-      <div class="modal__actions" style="justify-content:flex-start;">
+      <div class="modal__actions" style="justify-content:space-between;">
+        <button id="btn-sunday-prev" class="btn btn--outline">⏮ Previous Sundays</button>
         <button id="btn-sunday-clear" class="btn btn--danger" hidden>Clear all</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Previous Sunday Worship dialog -->
+  <dialog id="prev-sunday-modal" class="modal modal--wide" aria-modal="true" aria-labelledby="prev-sunday-title">
+    <div class="modal__inner">
+      <div class="settings-header">
+        <h2 id="prev-sunday-title" class="modal__title">⏮ Previous Sunday Worship</h2>
+        <button type="button" id="btn-prev-sunday-close" class="input-toggle" aria-label="Close">✕</button>
+      </div>
+      <div id="prev-sunday-list" class="prev-sunday-list"></div>
+      <div class="modal__actions" style="justify-content:flex-start;">
+        <button id="btn-back-to-current" class="btn btn--outline">↩ Back to upcoming</button>
       </div>
     </div>
   </dialog>
@@ -361,6 +377,6 @@ A thousand generations...</pre>
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=27"></script>
+  <script type="module" src="app.js?v=28"></script>
 </body>
 </html>
