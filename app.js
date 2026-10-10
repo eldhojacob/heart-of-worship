@@ -1281,15 +1281,52 @@ function convertInlineChords(text) {
 }
 
 // Decide how to build the stored chart:
-//  - if a plain-lyrics field is provided, merge chords onto those clean lyrics
-//  - otherwise just normalise the chords field on its own
+//  1) Run the normal VerseView parser on the chords field (chords untouched).
+//  2) If a plain-lyrics field is provided, use it to CORRECT the lyric lines
+//     only (replace parsed lyric text with the clean version), line by line,
+//     skipping Malayalam-script lines and leaving all chord lines as-is.
 function buildChart(chordsText, lyricsText) {
   const hasChords = chordsText && chordsText.trim();
   const hasLyrics = lyricsText && lyricsText.trim();
-  if (hasChords && hasLyrics) return mergeChordsWithLyrics(chordsText, lyricsText);
-  if (hasChords) return normaliseChart(chordsText);
+  if (hasChords) {
+    const parsed = normaliseChart(chordsText);
+    if (hasLyrics) return correctLyricLines(parsed, lyricsText);
+    return parsed;
+  }
   if (hasLyrics) return lyricsText.trim();   // lyrics only, no chords
   return null;
+}
+
+// True if a line contains Malayalam (or other non-Latin) script characters
+function hasNonLatinScript(line) {
+  return /[^\u0000-\u024F\s]/.test(line); // anything beyond basic/extended Latin
+}
+
+// Replace parsed lyric lines with clean lines from the Lyrics field, in order.
+// Chord lines, [Verse] labels, blank lines and Malayalam lines are left as-is.
+function correctLyricLines(chart, lyricsText) {
+  // Clean lyric lines: keep only English/transliterated (Latin) non-empty lines,
+  // strip a leading verse number like "1 " so it lines up with the chart lyrics.
+  const cleanLines = String(lyricsText)
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(l => l.replace(/\s+$/, ''))
+    .filter(l => l.trim() !== '' && !hasNonLatinScript(l))
+    .map(l => l.replace(/^\s*\(?\d{1,2}\)?\s+/, '')); // drop leading verse number
+
+  const chartLines = String(chart).replace(/\r\n?/g, '\n').split('\n');
+  let ci = 0;
+  const out = chartLines.map(line => {
+    const trimmed = line.trim();
+    if (trimmed === '') return line;                 // keep blanks
+    if (/^\[.*\]$/.test(trimmed)) return line;        // keep section labels
+    if (isChordLine(line)) return line;               // keep chord lines untouched
+    if (hasNonLatinScript(line)) return line;         // keep Malayalam lines
+    // this is a Latin lyric line → replace with the next clean line
+    if (ci < cleanLines.length) return cleanLines[ci++];
+    return line;
+  });
+  return out.join('\n');
 }
 
 // Merge a VerseView chords field with a clean plain-lyrics field.
