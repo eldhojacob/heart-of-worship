@@ -51,7 +51,8 @@ heart-of-worship/
     └── specs/heart-of-worship/
         ├── .config.kiro     # Kiro spec metadata
         ├── requirements.md  # Full requirements (EARS format)
-        └── design.md        # Architecture, data models, security rules, properties
+        ├── design.md        # Architecture, data models, security rules, properties
+        └── tasks.md         # Step-by-step build plan + task dependency graph
 ```
 
 ## Tech stack
@@ -134,8 +135,10 @@ exactly where this left off.
 1. **Clone the repo**
    `git clone https://github.com/eldhojacob/heart-of-worship.git`
 2. **Open the folder in Kiro** — it auto-detects the spec under
-   `.kiro/specs/heart-of-worship/` (requirements + design). From there you can
-   generate tasks, update the spec, or keep building.
+   `.kiro/specs/heart-of-worship/` (requirements + design + tasks). The `tasks.md`
+   file is a complete, ordered build plan (with a task dependency graph) so you can
+   rebuild from scratch or keep extending. From there you can run tasks, update the
+   spec, or keep building.
 3. **Install Node.js** (any recent LTS) if you want to run the quick syntax check
    `node -c app.js` before pushing. No `npm install` is required for the app itself —
    there is no build step.
