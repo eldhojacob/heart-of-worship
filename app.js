@@ -483,6 +483,8 @@ function renderSunday() {
   const songs = sundayIds.map(id => allSongs.find(s => s.id === id)).filter(Boolean);
 
   clearBtn.hidden = !isAdmin() || songs.length === 0;
+  const moveBtn = qs('#btn-sunday-move');
+  if (moveBtn) moveBtn.hidden = !isAdmin() || songs.length === 0;
 
   const isMalayalam = s => (s.language || '').trim().toLowerCase() === 'malayalam';
   const ml = songs.filter(isMalayalam);
@@ -554,6 +556,33 @@ qs('#btn-sunday-clear').addEventListener('click', async () => {
   } catch (ex) {
     console.error(ex);
     showToast('Could not clear: ' + (ex.message || ex));
+  }
+});
+
+// Move the current Upcoming Sunday songs into Previous Sundays (archive),
+// then empty the upcoming list. The ✓ On Sunday tags clear automatically
+// because the song IDs are removed from config/sunday (live-synced).
+qs('#btn-sunday-move').addEventListener('click', async () => {
+  if (!isAdmin()) { showToast('Only admins can do this.'); return; }
+  if (!sundayIds.length) { showToast('No songs to move.'); return; }
+  if (!confirm('Move all songs from Upcoming Sunday Worship into Previous Sundays?\n\nThe upcoming list will be emptied and these songs become locked (view only).')) return;
+  try {
+    await ensureAnonAuthForSunday();
+    // Date to file this worship under: the week it was set for (or today's upcoming Sunday)
+    const archiveDate = sundayWeek || toISODate(upcomingSundayDate());
+    const existing = sundayHistory.filter(a => a.date !== archiveDate);
+    const archives = [{ date: archiveDate, songIds: [...sundayIds] }, ...existing].slice(0, 52);
+    await db.collection('config').doc('sundayHistory').set({ archives }, { merge: true });
+    // Empty the upcoming list and roll the week forward to the next upcoming Sunday
+    await db.collection('config').doc('sunday').set({ songIds: [], weekDate: toISODate(upcomingSundayDate()) }, { merge: true });
+    showToast('Moved to Previous Sundays. Upcoming list is now empty.');
+    // Jump the user to the Previous Sundays view so they can see the moved list
+    qs('#sunday-modal').close();
+    renderPrevSundays();
+    qs('#prev-sunday-modal').showModal();
+  } catch (ex) {
+    console.error(ex);
+    showToast('Could not move: ' + (ex.message || ex));
   }
 });
 
@@ -1335,24 +1364,52 @@ function extractChordMarkers(chordsText) {
 }
 
 // Split the Chords field into one chord-group PER English phrase/line.
-// VerseView separates phrases with 2+ spaces or newlines; verse numbers also
-// break phrases. Returns an array of arrays-of-chord-strings.
+// For EACH phrase, return a list of chords with the word index + character
+// offset within that word where the chord sits, so we can re-place every chord
+// (including multiple chords inside one word) above the clean lyric.
 function splitChordGroups(chordsText) {
-  // Normalise: 2+ spaces or newlines → a single phrase-break marker "\n"
   let s = String(chordsText)
     .replace(/\u00a0/g, ' ')
     .replace(/\r\n?/g, '\n')
     .replace(/[ \t]{2,}/g, '\n')
     .replace(/\n+/g, '\n')
     .trim();
+  s = s.replace(/(^|\n)\s*\(?\d{1,2}\)?\s+/g, '\n'); // break before verse numbers
 
-  // Also break before a standalone verse number
-  s = s.replace(/(^|\n)\s*\(?\d{1,2}\)?\s+/g, '\n');
-
+  const CHORD = /[A-G](?:#|b)?(?:maj|min|aug|dim|sus|add|m)?(?:\d{1,2})?(?:\/[A-G](?:#|b)?)?/y;
   const groups = [];
+
   s.split('\n').forEach(phrase => {
-    const chords = extractChordMarkers(phrase);
-    if (chords.length) groups.push(chords);
+    if (!phrase.trim()) return;
+    // Walk the phrase, tracking word index + letters seen in the current word.
+    const chords = []; // { chord, wordIdx, offset }
+    let wordIdx = -1;      // increments when a new word starts
+    let letterInWord = 0;  // lyric letters accumulated in current word
+    let inWord = false;
+    let i = 0;
+    while (i < phrase.length) {
+      const ch = phrase[i];
+      if (ch === ' ') { inWord = false; i++; continue; }
+      // try chord at this position
+      if (ch >= 'A' && ch <= 'G') {
+        CHORD.lastIndex = i;
+        const m = CHORD.exec(phrase);
+        const next = phrase[i + (m ? m[0].length : 0)] || '';
+        const prevSpace = (phrase[i-1] || ' ') === ' ';
+        // treat as chord if glued to a following letter, or standalone
+        if (m && m[0] && (/[a-zA-Z]/.test(next) || next === '' || next === ' ')) {
+          if (!inWord) { wordIdx++; letterInWord = 0; inWord = true; }
+          chords.push({ chord: m[0], wordIdx, offset: letterInWord });
+          i += m[0].length;
+          continue;
+        }
+      }
+      // a lyric letter
+      if (!inWord) { wordIdx++; letterInWord = 0; inWord = true; }
+      letterInWord++;
+      i++;
+    }
+    groups.push(chords);
   });
   return groups;
 }
@@ -1385,25 +1442,33 @@ function mergeChordsOverMixedLyrics(chordsText, lyricsText) {
     // Malayalam line → skip (not shown in the chords view)
     if (isMalayalam(line)) return;
 
-    // English line → emit optional label, then chords над the English line
+    // English line → emit optional label, then ALL chords над the clean line
     if (isLatinLyric(line)) {
       const lyric = line.replace(/^\(?\d{1,2}\)?\s+/, '');
       if (pendingLabel) { if (out.length) out.push(''); out.push(pendingLabel); pendingLabel = ''; }
 
-      const chords = groups[gIdx] || [];
+      const chords = groups[gIdx] || [];   // [{chord, wordIdx, offset}]
       gIdx++;
 
+      // Column of the start of each word in the clean lyric
       const wordStarts = [];
       const re = /\S+/g; let wm;
-      while ((wm = re.exec(lyric)) !== null) wordStarts.push(wm.index);
+      while ((wm = re.exec(lyric)) !== null) wordStarts.push({ start: wm.index, len: wm[0].length });
 
       let chordLine = '';
-      for (let c = 0; c < chords.length; c++) {
-        const col = (c < wordStarts.length) ? wordStarts[c] : (chordLine.length + 1);
+      chords.forEach(mk => {
+        // Base column = start of the mapped word; add the in-word offset (clamped)
+        let col;
+        if (mk.wordIdx < wordStarts.length) {
+          const w = wordStarts[mk.wordIdx];
+          col = w.start + Math.min(mk.offset, w.len);
+        } else {
+          col = chordLine.length + 1; // extra chords beyond the words → append
+        }
         const need = chordLine.length === 0 ? col : Math.max(col, chordLine.length + 1);
         while (chordLine.length < need) chordLine += ' ';
-        chordLine += chords[c];
-      }
+        chordLine += mk.chord;
+      });
       if (chordLine.trim()) out.push(chordLine.replace(/\s+$/, ''));
       out.push(lyric);
     }
